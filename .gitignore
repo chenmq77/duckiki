@@ -74,3 +74,16 @@ htmlcov/
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# ========================================
+# Obsidian
+# ========================================
+
+# Obsidian 工作区缓存（不推送，因为每个人的布局不同）
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+
+# Obsidian 配置（推送，团队共享配置）
+!.obsidian/app.json
+!.obsidian/appearance.json

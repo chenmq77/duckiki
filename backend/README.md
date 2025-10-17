@@ -4,6 +4,17 @@
 
 ---
 
+## 📚 相关文档
+
+在开始之前，建议先阅读：
+
+- **业务需求**：[需求文档 - 项目概述](../docs/gym-roi-requirements.md#1-项目概述) 或 [[gym-roi-requirements#1. 项目概述|需求文档]] - 了解项目目标和功能
+- **游泳权重公式**：[需求文档 3.2.2](../docs/gym-roi-requirements.md#322-游泳距离动态权重公式) 或 [[gym-roi-requirements#3.2.2 游泳距离动态权重公式|权重公式]] - 高斯函数计算逻辑
+- **整体架构**：[架构设计文档 - 整体架构](../docs/gym-roi-architecture.md#整体架构) 或 [[gym-roi-architecture#整体架构|架构文档]] - 了解系统设计和技术选型
+- **开发规范**：[开发最佳实践指南 - 虚拟环境](../docs/development-guide.md#1-虚拟环境-virtual-environment) 或 [[development-guide#1. 虚拟环境 (Virtual Environment)|开发指南]] - Python 代码风格和工作流
+
+---
+
 ## 📦 技术栈
 
 - **Python**: 3.8.11

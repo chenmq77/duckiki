@@ -1,0 +1,10 @@
+{
+  "alwaysUpdateLinks": true,
+  "newFileLocation": "current",
+  "attachmentFolderPath": "./",
+  "defaultViewMode": "preview",
+  "strictLineBreaks": false,
+  "showFrontmatter": true,
+  "foldHeading": false,
+  "foldIndent": false
+}

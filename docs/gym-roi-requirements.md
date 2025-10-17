@@ -25,7 +25,7 @@ Gym ROI Tracker - 健身房投资回报追踪工具
 ## 2. 用户场景
 
 ### 2.1 主要用户
-个人使用者（作者本人）
+个人使用者（目前是作者本人，以后开放给更多用户使用）
 
 ### 2.2 使用流程
 
@@ -181,49 +181,60 @@ Gym ROI Tracker - 健身房投资回报追踪工具
 
 使用**高斯函数 + 非对称奖励机制**：
 
-```javascript
-/**
- * 游泳距离动态权重（高斯曲线 + 超出基准奖励）
- * @param {number} distance - 游泳距离（米）
- * @param {number} baseline - 基准距离（默认 1000m，可随体能调整）
- * @param {number} sigma - 标准差（默认 400，控制容忍度）
- * @returns {number} 权重系数
- */
-function calculateSwimmingWeight(distance, baseline = 1000, sigma = 400) {
-  if (distance <= 0) return 0;
+**数学模型**：
 
-  const deviation = distance - baseline;
-
-  // 高斯权重（对称）
-  const gaussianWeight = Math.exp(
-    -(deviation * deviation) / (2 * sigma * sigma)
-  );
-
-  if (distance <= baseline) {
-    // 小于等于基准：使用高斯权重（惩罚）
-    // 500m  → 0.64
-    // 750m  → 0.88
-    // 1000m → 1.0
-    return gaussianWeight;
-  } else {
-    // 大于基准：高斯权重 + 1.0（奖励）
-    // 1500m → 0.64 + 1 = 1.64
-    // 2000m → 0.14 + 1 = 1.14
-    // 3000m → 0.00 + 1 = 1.0（保底）
-    return gaussianWeight + 1.0;
-  }
-}
-
-// 效果示例：
-// 500m  → 0.64  (少游，惩罚)
-// 1000m → 1.0   (基准)
-// 1500m → 1.64  (多游500m，奖励！)
-// 2000m → 1.14  (多游1000m，继续奖励但递减)
 ```
+weight(distance) = {
+    exp(-(distance - baseline)² / (2σ²))           if distance ≤ baseline
+    exp(-(distance - baseline)² / (2σ²)) + 1.0     if distance > baseline
+}
+```
+
+**伪代码实现**：
+
+```
+函数 calculateSwimmingWeight(distance, baseline, sigma):
+    输入：
+        distance - 游泳距离（米）
+        baseline - 基准距离（默认 1000m，可随体能调整）
+        sigma    - 标准差（默认 400，控制容忍度）
+    输出：
+        weight - 权重系数
+
+    如果 distance ≤ 0:
+        返回 0
+
+    deviation = distance - baseline
+
+    // 计算高斯权重（对称）
+    gaussianWeight = exp(-(deviation²) / (2 × sigma²))
+
+    如果 distance ≤ baseline:
+        // 小于等于基准：使用高斯权重（惩罚）
+        返回 gaussianWeight
+    否则:
+        // 大于基准：高斯权重 + 1.0（奖励）
+        返回 gaussianWeight + 1.0
+```
+
+**效果示例**：
+
+| 距离 | 计算过程 | 权重 | 说明 |
+|------|---------|------|------|
+| 500m | exp(-0.39) | 0.64 | 少游，惩罚 |
+| 750m | exp(-0.10) | 0.88 | 略少于基准 |
+| 1000m | exp(0) | 1.0 | 基准，标准权重 |
+| 1500m | exp(-0.39) + 1 | 1.64 | 多游500m，奖励！ |
+| 2000m | exp(-1.56) + 1 | 1.14 | 多游1000m，继续奖励但递减 |
+| 3000m | exp(-6.25) + 1 | 1.00 | 多游很多，奖励衰减到保底 |
 
 **配置参数**：
 - `baseline`: 基准距离（1000m），随体能提升可调整（如 1200m、1500m）
 - `sigma`: 标准差（400），控制曲线陡峭程度，越大越宽松
+
+**具体实现**：
+- **Python 后端**：[`backend/utils/gaussian.py`](../backend/README.md#核心计算逻辑)
+- **JavaScript 前端**：[`src/apps/gym-roi/config.js`](../src/apps/gym-roi/config.js) (第 182-209 行)
 
 #### 3.2.3 数据字段
 
@@ -418,96 +429,111 @@ function calculateSwimmingWeight(distance, baseline = 1000, sigma = 400) {
 
 **模式 A：已扣费回本（短期激励）**
 
-```javascript
-// 示例：已训练 2 周
-const actualPaid = 34;        // $17 × 2周
-const currentActivities = 10; // 加权次数
-const avgCost = 34 / 10;      // $3.4/次
+```
+示例：已训练 2 周
 
-// 结果：
-// ✅ 已超值！单次仅 $3.4，远低于市场价 $50
+输入：
+    actualPaid = 34          // $17 × 2周
+    currentActivities = 10   // 加权次数
+
+计算：
+    avgCost = actualPaid / currentActivities
+    avgCost = 34 / 10 = $3.4/次
+
+结果：
+    ✅ 已超值！单次仅 $3.4，远低于市场价 $50
 ```
 
 **模式 B：全年预期回本（长期目标）**
 
-```javascript
-// 示例：周扣费年卡
-const expectedTotal = 816;    // $17 × 48周
-const marketPrice = 50;       // 单次游泳市场价
-
-// 回本目标层级
-const targets = {
-  breakeven: {
-    label: '回本线',
-    requiredCount: 816 / 50,  // 16.32 次
-    priceRatio: 1.0           // 市场价 100%
-  },
-  bronze: {
-    label: '铜牌目标',
-    requiredCount: 816 / (50 * 0.8),  // 20.4 次
-    priceRatio: 0.8           // 市场价 80%
-  },
-  silver: {
-    label: '银牌目标',
-    requiredCount: 816 / (50 * 0.6),  // 27.2 次
-    priceRatio: 0.6           // 市场价 60%
-  },
-  gold: {
-    label: '金牌目标',
-    requiredCount: 816 / (50 * 0.4),  // 40.8 次
-    priceRatio: 0.4           // 市场价 40%
-  }
-};
-
-// 当前进度：10 次
-// 回本线：10/16.32 = 61% ✅ 接近达成
-// 铜牌：10/20.4 = 49%
-// 银牌：10/27.2 = 37%
-// 金牌：10/40.8 = 24%
 ```
+示例：周扣费年卡
+
+输入：
+    expectedTotal = 816      // $17 × 48周
+    marketPrice = 50         // 单次游泳市场价
+
+回本目标层级计算：
+    回本线 = expectedTotal / marketPrice
+          = 816 / 50
+          = 16.32 次
+
+    铜牌目标 = expectedTotal / (marketPrice × 0.8)
+            = 816 / 40
+            = 20.4 次
+
+    银牌目标 = expectedTotal / (marketPrice × 0.6)
+            = 816 / 30
+            = 27.2 次
+
+    金牌目标 = expectedTotal / (marketPrice × 0.4)
+            = 816 / 20
+            = 40.8 次
+
+当前进度（10 次）：
+    回本线：10 / 16.32 = 61% ✅ 接近达成
+    铜牌：  10 / 20.4  = 49%
+    银牌：  10 / 27.2  = 37%
+    金牌：  10 / 40.8  = 24%
+```
+
+**具体实现**：
+- **Python 后端**：`backend/calculator.py`
+- **JavaScript 前端**：`src/apps/gym-roi/config.js` 和 `utils/calculator.js`
 
 #### 3.4.3 回本目标层级系统（新增）
 
-**目标配置**：
-```javascript
-const roiTargets = {
-  breakeven: {
-    label: "回本线",
-    icon: "📍",
-    priceRatio: 1.0,
-    color: "gray",
-    description: "达到市场价，不亏不赚"
+**目标配置结构**：
+
+```json
+{
+  "breakeven": {
+    "label": "回本线",
+    "icon": "📍",
+    "priceRatio": 1.0,
+    "color": "gray",
+    "description": "达到市场价，不亏不赚"
   },
-  bronze: {
-    label: "铜牌目标",
-    icon: "🥉",
-    priceRatio: 0.8,
-    color: "#CD7F32",
-    description: "比市场价便宜 20%"
+  "bronze": {
+    "label": "铜牌目标",
+    "icon": "🥉",
+    "priceRatio": 0.8,
+    "color": "#CD7F32",
+    "description": "比市场价便宜 20%"
   },
-  silver: {
-    label: "银牌目标",
-    icon: "🥈",
-    priceRatio: 0.6,
-    color: "#C0C0C0",
-    description: "比市场价便宜 40%"
+  "silver": {
+    "label": "银牌目标",
+    "icon": "🥈",
+    "priceRatio": 0.6,
+    "color": "#C0C0C0",
+    "description": "比市场价便宜 40%"
   },
-  gold: {
-    label: "金牌目标",
-    icon: "🥇",
-    priceRatio: 0.4,
-    color: "#FFD700",
-    description: "比市场价便宜 60%，超值！"
+  "gold": {
+    "label": "金牌目标",
+    "icon": "🥇",
+    "priceRatio": 0.4,
+    "color": "#FFD700",
+    "description": "比市场价便宜 60%，超值！"
   },
-  custom: {
-    label: "自定义目标",
-    icon: "💜",
-    priceRatio: null,
-    color: "#9C27B0",
-    description: "设置你的专属目标"
+  "custom": {
+    "label": "自定义目标",
+    "icon": "💜",
+    "priceRatio": null,
+    "color": "#9C27B0",
+    "description": "设置你的专属目标"
   }
-};
+}
 ```
+
+**配置说明**：
+- `priceRatio`: 目标价格比例（相对市场价）
+  - 1.0 = 市场价 100%
+  - 0.8 = 市场价 80%（便宜 20%）
+  - 0.6 = 市场价 60%（便宜 40%）
+  - 0.4 = 市场价 40%（便宜 60%）
+
+**具体实现**：
+- **配置文件**：`src/apps/gym-roi/config.js` (第 111-148 行)
 
 **智能折叠显示规则**：
 - **默认显示**：
@@ -519,37 +545,50 @@ const roiTargets = {
 
 #### 3.4.4 计算公式（更新）
 
-```javascript
-// 加权总次数（使用动态权重）
-const weightedTotal = activities.reduce((sum, act) => {
-  let weight = calculateActivityWeight(act);
-  return sum + weight;
-}, 0);
+**加权总次数计算**：
 
-// 计算活动权重（含强度和距离）
-function calculateActivityWeight(activity) {
-  const config = activityTypes[activity.type];
-  let weight = config.baseWeight;
-
-  // 游泳：距离动态权重
-  if (activity.type === 'swimming') {
-    weight = calculateSwimmingWeight(activity.data.distance);
-  }
-
-  // 其他活动：基础权重 × 强度系数
-  if (activity.data.intensity && config.intensityMultiplier) {
-    weight *= config.intensityMultiplier[activity.data.intensity];
-  }
-
-  return weight;
-}
-
-// 平均成本
-const avgCost = totalExpense / weightedTotal;
-
-// 性价比（相比市场价）
-const savings = (referencePrice - actualCost) / referencePrice * 100;
 ```
+weightedTotal = Σ calculateActivityWeight(activity)
+              = weight(activity₁) + weight(activity₂) + ... + weight(activityₙ)
+```
+
+**活动权重计算（伪代码）**：
+
+```
+函数 calculateActivityWeight(activity):
+    输入：activity - 活动记录对象
+    输出：weight - 最终权重
+
+    获取活动类型配置
+    weight = activityTypes[activity.type].baseWeight
+
+    如果 activity.type == 'swimming':
+        // 游泳：使用距离动态权重
+        weight = calculateSwimmingWeight(activity.data.distance)
+    否则:
+        // 其他活动：基础权重 × 强度系数
+        如果 activity.data.intensity 存在:
+            multiplier = activityTypes[activity.type].intensityMultiplier[intensity]
+            weight = weight × multiplier
+
+    返回 weight
+```
+
+**平均成本计算**：
+
+```
+avgCost = totalExpense / weightedTotal
+```
+
+**性价比计算（相比市场价）**：
+
+```
+savings = (referencePrice - actualCost) / referencePrice × 100%
+```
+
+**具体实现**：
+- **Python 后端**：`backend/calculator.py` 和 `backend/utils/weight_calculator.py`
+- **JavaScript 前端**：`src/apps/gym-roi/config.js` (第 217-234 行)
 
 #### 3.4.3 可视化图表
 1. **支出趋势图** (Expense Timeline)
@@ -741,148 +780,24 @@ const savings = (referencePrice - actualCost) / referencePrice * 100;
 
 ## 4. 数据模型
 
-### 4.1 配置文件 (config.js)（完整更新）
+### 4.1 数据字段说明
 
-```javascript
-export const config = {
-  // 货币设置（新增）
-  currency: {
-    default: 'NZD',
-    exchangeRates: {
-      'NZD_TO_RMB': 4.1
-    }
-  },
+详见第 3.1.2 节（支出字段）和第 3.2.3 节（活动字段）。
 
-  // 活动权重配置
-  activityTypes: {
-    swimming: {
-      label: '游泳',
-      icon: '🏊',
-      baseWeight: 1.0,
-      dynamicWeight: true,    // 使用距离动态权重
-      weightParams: {         // 游泳权重公式参数
-        baseline: 1000,       // 基准距离（米）
-        sigma: 400            // 标准差
-      },
-      referencePrice: 50,     // NZD
-      fields: ['distance']
-    },
+### 4.2 配置参数
 
-    group_class: {
-      label: '团课',
-      icon: '🧘',
-      baseWeight: 1.5,
-      intensityMultiplier: {  // 强度系数（新增）
-        light: 0.7,
-        medium: 1.0,
-        high: 1.3,
-        extreme: 1.5
-      },
-      referencePrice: 80,     // NZD
-      fields: ['className', 'intensity']
-    },
+配置参数（如货币汇率、活动权重、回本目标层级等）存储在前端配置文件中。
 
-    personal_training: {
-      label: '私教',
-      icon: '💪',
-      baseWeight: 3.0,
-      intensityMultiplier: {  // 强度系数
-        light: 0.8,
-        medium: 1.0,
-        hard: 1.3,
-        extreme: 1.5
-      },
-      referencePrice: 300,    // NZD
-      fields: ['topic', 'duration', 'trainer', 'intensity', 'noteFile']
-    },
+**具体实现**：[`src/apps/gym-roi/config.js`](../src/apps/gym-roi/config.js)
 
-    gym_day: {                // 新增
-      label: '力量训练',
-      icon: '🏋️',
-      baseWeight: 1.2,
-      intensityMultiplier: {
-        light: 0.8,
-        medium: 1.0,
-        hard: 1.2,
-        extreme: 1.4
-      },
-      referencePrice: 0,      // 包含在会员卡内
-      fields: ['exercises', 'duration', 'intensity', 'noteFile']
-    }
-  },
+**配置内容**：
+- 货币设置（汇率）
+- 活动类型配置（权重、强度系数、市场参考价）
+- 支出类型配置
+- 回本目标层级
+- 团课类型列表
 
-  // 支出类型配置
-  expenseTypes: {
-    membership: {
-      label: '会员费用',
-      categories: ['周卡', '月卡', '季卡', '年卡', '次卡']
-    },
-    membership_weekly: {      // 新增
-      label: '周扣费年卡',
-      categories: ['周扣费年卡']
-    },
-    equipment: {
-      label: '固定资产',
-      categories: ['游泳装备', '健身服', '鞋', '锁', '其他装备'],
-      assetTypes: ['essential', 'reward']  // 新增：必须/奖励
-    },
-    others: {
-      label: '其他费用',
-      categories: ['储物柜', '毛巾', '淋浴用品', '其他']
-    }
-  },
-
-  // 回本目标层级（新增）
-  roiTargets: {
-    breakeven: {
-      label: '回本线',
-      icon: '📍',
-      priceRatio: 1.0,
-      color: '#9E9E9E',
-      description: '达到市场价，不亏不赚'
-    },
-    bronze: {
-      label: '铜牌目标',
-      icon: '🥉',
-      priceRatio: 0.8,
-      color: '#CD7F32',
-      description: '比市场价便宜 20%'
-    },
-    silver: {
-      label: '银牌目标',
-      icon: '🥈',
-      priceRatio: 0.6,
-      color: '#C0C0C0',
-      description: '比市场价便宜 40%'
-    },
-    gold: {
-      label: '金牌目标',
-      icon: '🥇',
-      priceRatio: 0.4,
-      color: '#FFD700',
-      description: '比市场价便宜 60%，超值！'
-    },
-    custom: {
-      label: '自定义目标',
-      icon: '💜',
-      priceRatio: null,       // 用户自定义
-      customPrice: null,      // 自定义单次价格
-      color: '#9C27B0',
-      description: '设置你的专属目标'
-    }
-  },
-
-  // 团课类型列表
-  groupClassTypes: [
-    '瑜伽', '普拉提', '动感单车', 'HIIT',
-    '搏击操', '有氧舞蹈', '核心训练', '拉伸放松', '其他'
-  ]
-};
-
-export default config;
-```
-
-### 4.2 数据存储结构
+### 4.3 数据存储结构
 
 #### expenses.json（更新）
 ```json
@@ -994,289 +909,30 @@ export default config;
 
 ---
 
-## 5. 技术架构（v3.0 更新）
+## 5. 技术架构
 
-> **架构理念**: 本地 Flask API 开发 + GitHub Pages 静态展示
-> **核心优势**: 前后端分离开发体验 + 零部署成本 + 数据安全
+**架构理念**：本地 Flask API 开发 + GitHub Pages 静态展示
 
-### 5.1 架构设计
+**详细说明**：[架构设计文档](./gym-roi-architecture.md)
 
-#### 本地开发环境
-```
-┌──────────────────────────┐
-│   Flask API (后端)        │  ← Python 计算引擎
-│   http://localhost:5000  │     SQLite 数据库
-└────────┬─────────────────┘
-         │ REST API
-         ▼
-┌──────────────────────────┐
-│   React Admin (前端)     │  ← 数据录入、配置管理
-│   http://localhost:5173  │     实时统计看板
-└──────────────────────────┘
-         │
-         │ 点击"导出到 GitHub"
-         ▼
-┌──────────────────────────┐
-│   JSON 文件               │  ← 脱敏后的展示数据
-│   src/apps/gym-roi/data/ │
-└────────┬─────────────────┘
-         │ git push
-         ▼
-┌──────────────────────────┐
-│   GitHub Pages            │  ← 纯静态展示
-│   公开访问                │     朋友/粉丝可见
-└──────────────────────────┘
-```
-
-#### 生产环境（GitHub Pages）
-- **React Public 前端**：纯静态页面，读取 JSON 文件
-- **无后端 API**：所有计算在前端完成（基于导出的数据）
-- **访问地址**：https://chenmq77.github.io/duckiki/gym-roi
-
-### 5.2 技术栈
-
-#### 后端（本地开发）
-- **Python**: 3.8.11
-- **Flask**: 3.0+ (Web 框架)
-- **SQLAlchemy**: 2.0+ (ORM)
-- **SQLite**: 3.x (数据库)
-- **NumPy**: 1.24+ (科学计算，高斯函数)
-- **Flask-CORS**: 4.0+ (跨域支持)
-- **python-dotenv**: 1.0+ (环境变量管理)
-
-#### 前端（Admin 页面 - 本地）
-- **React**: 18.x
-- **Vite**: 5.x
-- **Axios**: 1.6+ (HTTP 客户端，调用本地 API)
-- **React Hook Form**: 7.x (表单管理)
-- **Tailwind CSS**: 3.x (样式框架)
-- **React Markdown**: 9.x (训练日记渲染)
-- **Chart.js / Recharts**: 图表库
-
-#### 前端（Public 页面 - GitHub Pages）
-- **React**: 18.x
-- **Vite**: 5.x
-- **纯 fetch API**: 读取静态 JSON（无需 Axios）
-- **Tailwind CSS**: 3.x
-- **Chart.js**: 4.x (图表可视化)
-- **React Markdown**: 9.x (训练日记展示)
-
-### 5.3 核心 API 接口
-
-#### 基础 URL
-```
-http://localhost:5000/api
-```
-
-#### 支出管理
-```http
-GET    /api/expenses          # 获取所有支出
-POST   /api/expenses          # 添加支出
-PUT    /api/expenses/<id>     # 更新支出
-DELETE /api/expenses/<id>     # 删除支出
-```
-
-#### 活动管理
-```http
-GET    /api/activities        # 获取所有活动
-POST   /api/activities        # 添加活动（自动计算权重）
-PUT    /api/activities/<id>   # 更新活动
-DELETE /api/activities/<id>   # 删除活动
-```
-
-#### ROI 计算
-```http
-GET    /api/roi/summary       # 获取 ROI 摘要（双重计算）
-GET    /api/roi/trend         # 获取 ROI 趋势数据
-```
-
-#### 统计分析
-```http
-GET    /api/stats/summary     # 获取统计摘要
-GET    /api/stats/activity-frequency  # 活动频率分析
-```
-
-#### 数据导出（核心功能）
-```http
-POST   /api/export/json       # 导出 JSON 文件到 data/
-```
-
-**功能**：
-1. 从 SQLite 读取所有数据
-2. 数据脱敏（移除敏感个人信息）
-3. 计算 ROI、统计数据
-4. 生成 JSON 文件到 `src/apps/gym-roi/data/`
-5. 返回 Git 命令提示
-
-### 5.4 数据流向
-
-#### 场景 1：本地录入活动
-```
-用户在 Admin 填表
-  → POST /api/activities
-  → Python 计算权重（高斯函数）
-  → 存入 SQLite
-  → 返回成功响应
-  → Admin 页面刷新
-```
-
-#### 场景 2：导出数据到 GitHub
-```
-点击"导出到 GitHub"
-  → POST /api/export/json
-  → Flask 读取 SQLite
-  → 数据脱敏处理
-  → 写入 JSON 文件
-  → 返回 Git 命令提示
-  → 用户执行 git push
-  → GitHub Actions 部署
-  → Public 页面更新
-```
-
-#### 场景 3：朋友访问 Public 页面
-```
-访问 GitHub Pages
-  → React Public 加载
-  → fetch JSON 文件
-  → 渲染 ROI 进度、图表
-  → 纯静态展示（无 API）
-```
-
-### 5.5 数据安全与隐私
-
-#### 本地数据（不推送到 GitHub）
-- `gym_roi.db`: SQLite 数据库（包含完整真实数据）
-- `.env`: 环境变量配置
-- `venv/`: Python 虚拟环境
-
-#### 导出数据（推送到 GitHub）
-- **脱敏处理**：移除姓名、教练名称、详细备注中的隐私
-- **数据聚合**：只导出统计结果，不导出原始明细
-- **可配置**：在 Flask API 中定义脱敏规则
-
-**示例**：
-```python
-# 原始数据（本地）
-{
-  "trainer": "张教练",
-  "note": "在健身房A区，旁边是李先生"
-}
-
-# 导出数据（GitHub）
-{
-  "note": "私教课程"
-}
-```
-
-### 5.6 技术实现
-
-#### 5.6.1 前端框架
-- **React 18 + Vite**
-- **UI 组件库**: Ant Design (推荐) / Tailwind CSS
-- **图表库**: Recharts / Chart.js
-- **路由**: React Router v6
-- **Markdown**: react-markdown + remark-gfm
-- **日期处理**: date-fns
-
-#### 5.6.2 数据存储
-- **开发环境**：SQLite（本地数据库）
-- **生产环境**：静态 JSON 文件（GitHub Pages）
-
-### 5.2 目录结构
-```
-src/apps/gym-roi/
-├── components/
-│   ├── ExpenseForm.jsx        # 支出录入表单
-│   ├── ActivityForm.jsx       # 活动记录表单
-│   ├── NoteEditor.jsx         # Markdown 笔记编辑器
-│   ├── Dashboard.jsx          # 数据看板组件
-│   ├── ROIChart.jsx           # 回本曲线图
-│   ├── ExpenseTimeline.jsx    # 支出趋势图
-│   ├── ActivityFrequency.jsx  # 活动频率图
-│   └── DataTable.jsx          # 数据列表
-├── pages/
-│   ├── AdminPage.jsx          # 管理页面
-│   └── PublicPage.jsx         # 公开展示页面
-├── data/
-│   ├── expenses.json          # 静态支出数据
-│   ├── activities.json        # 静态活动数据
-│   └── notes/                 # Markdown 笔记文件夹
-├── utils/
-│   ├── storage.js             # localStorage 封装
-│   ├── calculator.js          # ROI 计算逻辑
-│   ├── export.js              # 数据导出功能
-│   └── dataLoader.js          # 数据加载（JSON/localStorage）
-└── config.js                  # 配置文件
-```
-
-### 5.3 路由设计
-```javascript
-// App.jsx
-<Routes>
-  <Route path="/" element={<HomePage />} />
-  <Route path="/gym-roi" element={<PublicPage />} />
-  <Route path="/admin" element={<AdminPage />} />
-  <Route path="/admin/gym-roi" element={<GymROIAdmin />} />
-</Routes>
-```
+**核心内容**：
+- 整体架构图（本地开发环境 → GitHub Pages）
+- 技术栈选型（Python/Flask 后端 + React 前端）
+- API 接口设计（支出、活动、ROI、统计、导出）
+- 数据流向（录入 → 计算 → 导出 → 展示）
+- 数据安全与隐私（脱敏处理）
+- 项目目录结构
 
 ---
 
 ## 6. 部署方案
 
-### 6.1 开发环境 (localhost)
+**详细说明**：[架构设计文档 - 部署策略](./gym-roi-architecture.md#部署策略)
 
-#### 6.1.1 Admin 模式（数据录入）
-```bash
-npm run dev
-# 访问 http://localhost:5173/admin
-```
-- 数据存储在浏览器 localStorage
-- 可以实时录入和查看数据
-- 支持配置管理和数据导出
-
-#### 6.1.2 Public 模式（本地测试展示效果）
-```bash
-npm run dev
-# 访问 http://localhost:5173/gym-roi
-```
-- 读取 `src/apps/gym-roi/data/*.json` 文件
-- 模拟 GitHub Pages 展示效果
-- 测试数据可视化和回本进度显示
-
-**重要**：
-- Admin 和 Public 可以在同一个开发服务器中切换路由访问
-- 数据流向：localStorage (Admin) → JSON 文件 → Public 页面
-
-### 6.2 生产环境 (GitHub Pages)
-- 推送代码到 GitHub 自动部署
-- 读取静态 JSON 文件展示数据
-- Public 页面只读展示
-- 其他人可以访问查看
-- 访问地址：https://chenmq77.github.io/duckiki/gym-roi
-
-### 6.3 数据同步流程（更新）
-
-**方案 A：半自动同步（推荐）**
-1. 在 localhost Admin 页面录入数据
-2. 点击"同步到 GitHub"按钮
-3. 数据自动写入 `src/apps/gym-roi/data/*.json`
-4. 系统弹出提示框，显示需要执行的命令：
-   ```
-   请在终端执行以下命令完成同步：
-   git add src/apps/gym-roi/data
-   git commit -m "更新健身数据"
-   git push
-   ```
-5. 用户在终端手动执行命令
-6. GitHub Actions 自动部署
-7. 访问 Public 页面查看更新
-
-**方案 B：手动导出（备用）**
-1. 点击"导出数据到 JSON"
-2. 下载 JSON 文件到本地
-3. 手动复制到 `src/apps/gym-roi/data/` 目录
-4. Git 提交推送
+**核心内容**：
+- **开发环境**：本地 Admin + 本地 Public 测试
+- **生产环境**：GitHub Pages 静态展示
+- **数据同步流程**：半自动同步（导出 JSON → git push）
 
 ---
 
