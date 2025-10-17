@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-10-17] - 修复部署权限
+
+### 修改内容
+- 更新 README 为中文说明
+- 修复 GitHub Actions 工作流权限配置
+
+### 为什么这样做
+- GitHub Actions 需要写入权限才能部署到 GitHub Pages
+- 在仓库设置中启用了 "Read and write permissions"
+
+### 如何工作
+- 推送代码会触发 GitHub Actions 重新构建和部署
+
 ## [2025-10-17] - 初始化项目
 
 ### 添加内容

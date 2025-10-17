@@ -1,6 +1,10 @@
-# React + Vite
+# Duckiki - 我的个人网站
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+这是使用 React + Vite 构建的个人网站项目。
+
+## 在线访问
+
+🌐 https://chenmq77.github.io/duckiki/
 
 Currently, two official plugins are available:
 
