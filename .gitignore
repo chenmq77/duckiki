@@ -22,3 +22,55 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# ========================================
+# Python / Flask Backend
+# ========================================
+
+# 虚拟环境 (IMPORTANT: 永远不要推送虚拟环境!)
+venv/
+env/
+ENV/
+backend/venv/
+backend/env/
+
+# Python 编译文件
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 数据库文件 (SQLite 本地数据库，包含真实数据，不推送!)
+*.db
+*.sqlite
+*.sqlite3
+backend/*.db
+
+# 环境变量配置 (包含敏感信息，不推送!)
+.env
+backend/.env
+
+# Flask 实例文件
+instance/
+.webassets-cache
+
+# Python 发行文件
+*.egg-info/
+dist/
+build/
+*.egg
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride

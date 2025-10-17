@@ -994,16 +994,193 @@ export default config;
 
 ---
 
-## 5. 技术实现
+## 5. 技术架构（v3.0 更新）
 
-### 5.1 技术栈
-- **前端框架**: React 18 + Vite
+> **架构理念**: 本地 Flask API 开发 + GitHub Pages 静态展示
+> **核心优势**: 前后端分离开发体验 + 零部署成本 + 数据安全
+
+### 5.1 架构设计
+
+#### 本地开发环境
+```
+┌──────────────────────────┐
+│   Flask API (后端)        │  ← Python 计算引擎
+│   http://localhost:5000  │     SQLite 数据库
+└────────┬─────────────────┘
+         │ REST API
+         ▼
+┌──────────────────────────┐
+│   React Admin (前端)     │  ← 数据录入、配置管理
+│   http://localhost:5173  │     实时统计看板
+└──────────────────────────┘
+         │
+         │ 点击"导出到 GitHub"
+         ▼
+┌──────────────────────────┐
+│   JSON 文件               │  ← 脱敏后的展示数据
+│   src/apps/gym-roi/data/ │
+└────────┬─────────────────┘
+         │ git push
+         ▼
+┌──────────────────────────┐
+│   GitHub Pages            │  ← 纯静态展示
+│   公开访问                │     朋友/粉丝可见
+└──────────────────────────┘
+```
+
+#### 生产环境（GitHub Pages）
+- **React Public 前端**：纯静态页面，读取 JSON 文件
+- **无后端 API**：所有计算在前端完成（基于导出的数据）
+- **访问地址**：https://chenmq77.github.io/duckiki/gym-roi
+
+### 5.2 技术栈
+
+#### 后端（本地开发）
+- **Python**: 3.8.11
+- **Flask**: 3.0+ (Web 框架)
+- **SQLAlchemy**: 2.0+ (ORM)
+- **SQLite**: 3.x (数据库)
+- **NumPy**: 1.24+ (科学计算，高斯函数)
+- **Flask-CORS**: 4.0+ (跨域支持)
+- **python-dotenv**: 1.0+ (环境变量管理)
+
+#### 前端（Admin 页面 - 本地）
+- **React**: 18.x
+- **Vite**: 5.x
+- **Axios**: 1.6+ (HTTP 客户端，调用本地 API)
+- **React Hook Form**: 7.x (表单管理)
+- **Tailwind CSS**: 3.x (样式框架)
+- **React Markdown**: 9.x (训练日记渲染)
+- **Chart.js / Recharts**: 图表库
+
+#### 前端（Public 页面 - GitHub Pages）
+- **React**: 18.x
+- **Vite**: 5.x
+- **纯 fetch API**: 读取静态 JSON（无需 Axios）
+- **Tailwind CSS**: 3.x
+- **Chart.js**: 4.x (图表可视化)
+- **React Markdown**: 9.x (训练日记展示)
+
+### 5.3 核心 API 接口
+
+#### 基础 URL
+```
+http://localhost:5000/api
+```
+
+#### 支出管理
+```http
+GET    /api/expenses          # 获取所有支出
+POST   /api/expenses          # 添加支出
+PUT    /api/expenses/<id>     # 更新支出
+DELETE /api/expenses/<id>     # 删除支出
+```
+
+#### 活动管理
+```http
+GET    /api/activities        # 获取所有活动
+POST   /api/activities        # 添加活动（自动计算权重）
+PUT    /api/activities/<id>   # 更新活动
+DELETE /api/activities/<id>   # 删除活动
+```
+
+#### ROI 计算
+```http
+GET    /api/roi/summary       # 获取 ROI 摘要（双重计算）
+GET    /api/roi/trend         # 获取 ROI 趋势数据
+```
+
+#### 统计分析
+```http
+GET    /api/stats/summary     # 获取统计摘要
+GET    /api/stats/activity-frequency  # 活动频率分析
+```
+
+#### 数据导出（核心功能）
+```http
+POST   /api/export/json       # 导出 JSON 文件到 data/
+```
+
+**功能**：
+1. 从 SQLite 读取所有数据
+2. 数据脱敏（移除敏感个人信息）
+3. 计算 ROI、统计数据
+4. 生成 JSON 文件到 `src/apps/gym-roi/data/`
+5. 返回 Git 命令提示
+
+### 5.4 数据流向
+
+#### 场景 1：本地录入活动
+```
+用户在 Admin 填表
+  → POST /api/activities
+  → Python 计算权重（高斯函数）
+  → 存入 SQLite
+  → 返回成功响应
+  → Admin 页面刷新
+```
+
+#### 场景 2：导出数据到 GitHub
+```
+点击"导出到 GitHub"
+  → POST /api/export/json
+  → Flask 读取 SQLite
+  → 数据脱敏处理
+  → 写入 JSON 文件
+  → 返回 Git 命令提示
+  → 用户执行 git push
+  → GitHub Actions 部署
+  → Public 页面更新
+```
+
+#### 场景 3：朋友访问 Public 页面
+```
+访问 GitHub Pages
+  → React Public 加载
+  → fetch JSON 文件
+  → 渲染 ROI 进度、图表
+  → 纯静态展示（无 API）
+```
+
+### 5.5 数据安全与隐私
+
+#### 本地数据（不推送到 GitHub）
+- `gym_roi.db`: SQLite 数据库（包含完整真实数据）
+- `.env`: 环境变量配置
+- `venv/`: Python 虚拟环境
+
+#### 导出数据（推送到 GitHub）
+- **脱敏处理**：移除姓名、教练名称、详细备注中的隐私
+- **数据聚合**：只导出统计结果，不导出原始明细
+- **可配置**：在 Flask API 中定义脱敏规则
+
+**示例**：
+```python
+# 原始数据（本地）
+{
+  "trainer": "张教练",
+  "note": "在健身房A区，旁边是李先生"
+}
+
+# 导出数据（GitHub）
+{
+  "note": "私教课程"
+}
+```
+
+### 5.6 技术实现
+
+#### 5.6.1 前端框架
+- **React 18 + Vite**
 - **UI 组件库**: Ant Design (推荐) / Tailwind CSS
-- **图表库**: Recharts
+- **图表库**: Recharts / Chart.js
 - **路由**: React Router v6
 - **Markdown**: react-markdown + remark-gfm
 - **日期处理**: date-fns
-- **数据存储**: localStorage (开发) + JSON (生产)
+
+#### 5.6.2 数据存储
+- **开发环境**：SQLite（本地数据库）
+- **生产环境**：静态 JSON 文件（GitHub Pages）
 
 ### 5.2 目录结构
 ```
