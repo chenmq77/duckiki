@@ -1,40 +1,78 @@
 {
   "activities": [
     {
-      "id": "act_example_001",
+      "id": "act_001",
       "type": "swimming",
       "date": "2025-10-17",
       "data": {
-        "distance": 1000
+        "distance": 1500
       },
-      "note": "示例数据：游泳 1000 米"
+      "calculatedWeight": 1.64,
+      "note": "状态不错，多游了500m"
     },
     {
-      "id": "act_example_002",
+      "id": "act_002",
       "type": "group_class",
       "date": "2025-10-17",
       "data": {
-        "className": "动感单车",
+        "className": "HIIT 燃脂",
         "intensity": "high"
       },
-      "note": "示例数据：高强度团课"
+      "calculatedWeight": 1.95,
+      "note": "高强度，出了很多汗！"
     },
     {
-      "id": "act_example_003",
+      "id": "act_003",
       "type": "personal_training",
       "date": "2025-10-18",
       "data": {
         "topic": "腿部力量训练",
         "duration": 60,
         "trainer": "张教练",
+        "intensity": "extreme",
         "noteFile": "2025-10-18-leg-training.md"
       },
-      "note": "示例数据：私教课程"
+      "calculatedWeight": 4.5,
+      "note": "极限训练，突破个人记录"
+    },
+    {
+      "id": "act_004",
+      "type": "gym_day",
+      "date": "2025-10-19",
+      "data": {
+        "exercises": "胸背日",
+        "duration": 90,
+        "intensity": "hard",
+        "noteFile": "2025-10-19-chest-back-day.md"
+      },
+      "calculatedWeight": 1.44,
+      "note": "卧推增重5kg"
+    },
+    {
+      "id": "act_005",
+      "type": "swimming",
+      "date": "2025-10-20",
+      "data": {
+        "distance": 2000
+      },
+      "calculatedWeight": 1.14,
+      "note": "今天游了2000m，虽然多但奖励递减"
+    },
+    {
+      "id": "act_006",
+      "type": "group_class",
+      "date": "2025-10-20",
+      "data": {
+        "className": "拉伸放松",
+        "intensity": "light"
+      },
+      "calculatedWeight": 1.05,
+      "note": "恢复性课程，轻松舒服"
     }
   ],
   "meta": {
-    "lastUpdated": "2025-10-18",
-    "totalActivities": 3,
-    "weightedTotal": 5.5
+    "lastUpdated": "2025-10-20",
+    "totalActivities": 6,
+    "weightedTotal": 11.72
   }
 }

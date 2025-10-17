@@ -1,26 +1,55 @@
 {
   "expenses": [
     {
-      "id": "exp_example_001",
-      "type": "membership",
-      "category": "年卡",
-      "amount": 3000,
-      "date": "2025-10-17",
-      "validFrom": "2025-10-17",
-      "validTo": "2026-10-17",
-      "note": "示例数据：年卡会员"
+      "id": "exp_001",
+      "type": "membership_weekly",
+      "category": "周扣费年卡",
+      "weeklyAmount": 17,
+      "currency": "NZD",
+      "contractMonths": 12,
+      "freeWeeks": 4,
+      "startDate": "2025-10-17",
+      "billingDay": "Monday",
+      "totalWeeks": 52,
+      "paidWeeks": 48,
+      "expectedTotal": 816,
+      "actualPaid": 136,
+      "discounts": [
+        {
+          "date": "2025-11-01",
+          "amount": 17,
+          "reason": "优惠活动"
+        }
+      ],
+      "note": "每周一扣费 $17 NZD，12个月合同"
     },
     {
-      "id": "exp_example_002",
+      "id": "exp_002",
       "type": "equipment",
       "category": "游泳装备",
-      "amount": 500,
+      "amount": 100,
+      "currency": "NZD",
+      "assetType": "essential",
       "date": "2025-10-17",
-      "note": "示例数据：泳镜、泳帽、耳塞"
+      "note": "泳镜、泳帽、耳塞 - 必须投入",
+      "includeInROI": true
+    },
+    {
+      "id": "exp_003",
+      "type": "equipment",
+      "category": "健身服",
+      "amount": 50,
+      "currency": "NZD",
+      "assetType": "reward",
+      "date": "2025-10-20",
+      "note": "奖励自己的新运动服 - 阶段性奖励",
+      "includeInROI": false
     }
   ],
   "meta": {
-    "lastUpdated": "2025-10-17",
-    "totalExpense": 3500
+    "lastUpdated": "2025-10-20",
+    "totalExpense": 966,
+    "actualPaid": 286,
+    "currency": "NZD"
   }
 }
