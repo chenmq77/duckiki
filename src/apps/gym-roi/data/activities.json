@@ -1,0 +1,40 @@
+{
+  "activities": [
+    {
+      "id": "act_example_001",
+      "type": "swimming",
+      "date": "2025-10-17",
+      "data": {
+        "distance": 1000
+      },
+      "note": "示例数据：游泳 1000 米"
+    },
+    {
+      "id": "act_example_002",
+      "type": "group_class",
+      "date": "2025-10-17",
+      "data": {
+        "className": "动感单车",
+        "intensity": "high"
+      },
+      "note": "示例数据：高强度团课"
+    },
+    {
+      "id": "act_example_003",
+      "type": "personal_training",
+      "date": "2025-10-18",
+      "data": {
+        "topic": "腿部力量训练",
+        "duration": 60,
+        "trainer": "张教练",
+        "noteFile": "2025-10-18-leg-training.md"
+      },
+      "note": "示例数据：私教课程"
+    }
+  ],
+  "meta": {
+    "lastUpdated": "2025-10-18",
+    "totalActivities": 3,
+    "weightedTotal": 5.5
+  }
+}

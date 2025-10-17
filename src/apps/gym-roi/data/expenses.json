@@ -1,0 +1,26 @@
+{
+  "expenses": [
+    {
+      "id": "exp_example_001",
+      "type": "membership",
+      "category": "年卡",
+      "amount": 3000,
+      "date": "2025-10-17",
+      "validFrom": "2025-10-17",
+      "validTo": "2026-10-17",
+      "note": "示例数据：年卡会员"
+    },
+    {
+      "id": "exp_example_002",
+      "type": "equipment",
+      "category": "游泳装备",
+      "amount": 500,
+      "date": "2025-10-17",
+      "note": "示例数据：泳镜、泳帽、耳塞"
+    }
+  ],
+  "meta": {
+    "lastUpdated": "2025-10-17",
+    "totalExpense": 3500
+  }
+}
