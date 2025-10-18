@@ -3,9 +3,10 @@ import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  base: '/gym-roi-tracker/',
+  // 开发环境使用根路径 '/',生产环境使用 '/gym-roi-tracker/'
+  base: mode === 'production' ? '/gym-roi-tracker/' : '/',
   build: {
     rollupOptions: {
       input: {
@@ -25,4 +26,4 @@ export default defineConfig({
     port: 5173,
     open: '/index.html', // 开发时默认打开管理端
   },
-})
+}))
