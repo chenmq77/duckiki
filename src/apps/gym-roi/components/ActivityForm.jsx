@@ -93,17 +93,17 @@ export default function ActivityForm({ onSuccess }) {
 
   return (
     <div style={styles.container}>
-      <h3 style={styles.title}>🏊 添加活动</h3>
+      <h3 style={styles.title}>添加活动</h3>
 
       {error && (
         <div style={styles.error}>
-          ❌ {error}
+          {error}
         </div>
       )}
 
       {lastWeight && (
         <div style={styles.success}>
-          ✅ 添加成功！权重: <strong>{lastWeight}</strong>
+          添加成功！权重: <strong>{lastWeight}</strong>
         </div>
       )}
 
@@ -141,7 +141,7 @@ export default function ActivityForm({ onSuccess }) {
           />
           {hint && (
             <div style={{ ...styles.hint, color: hint.color }}>
-              💡 {hint.text}
+              {hint.text}
             </div>
           )}
         </div>
@@ -182,13 +182,13 @@ export default function ActivityForm({ onSuccess }) {
             cursor: loading ? 'not-allowed' : 'pointer',
           }}
         >
-          {loading ? '添加中...' : '✅ 添加活动'}
+          {loading ? '添加中...' : '添加活动'}
         </button>
       </form>
 
       {/* 权重说明 */}
       <div style={styles.weightInfo}>
-        <div style={styles.weightTitle}>⚖️ 权重计算规则</div>
+        <div style={styles.weightTitle}>权重计算规则</div>
         <ul style={styles.weightList}>
           <li>基准距离：1000m = 权重 1.0</li>
           <li>少于基准：权重降低（高斯惩罚）</li>

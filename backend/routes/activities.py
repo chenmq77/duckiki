@@ -1,14 +1,15 @@
 """
 活动管理 API
 
-提供 CRUD 操作（创建、读取、删除）
+提供 CRUD 操作（创建、读取、更新、删除）
 
 特殊功能：
-- 创建活动时，自动调用高斯函数计算游泳权重
+- 创建/更新活动时，自动调用高斯函数计算游泳权重
 
 接口：
 - GET    /api/activities       - 获取所有活动
 - POST   /api/activities       - 创建新活动（自动计算权重）
+- PUT    /api/activities/<id>  - 更新指定活动（重新计算权重）
 - DELETE /api/activities/<id>  - 删除指定活动
 """
 
@@ -122,6 +123,80 @@ def create_activity():
 
     except ValueError as e:
         # 数据格式错误（如距离不是数字、日期格式不对）
+        return jsonify({'error': f'数据格式错误：{str(e)}'}), 400
+
+    except Exception as e:
+        # 其他错误，回滚事务
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+# ========================================
+# PUT /api/activities/<id> - 更新活动
+# ========================================
+@activities_bp.route('/api/activities/<int:id>', methods=['PUT'])
+def update_activity(id):
+    """
+    更新指定的活动记录
+
+    ⭐ 核心功能：如果距离改变，重新计算权重
+
+    路径参数:
+        id (int): 活动记录的 ID
+
+    请求体（JSON）:
+    {
+      "type": "swimming",           # 可选
+      "date": "2025-10-18",         # 可选
+      "distance": 1800,             # 可选（改变会重新计算权重）
+      "note": "更新备注"            # 可选
+    }
+
+    返回:
+        200 OK - 更新成功，返回更新后的数据（包含新权重）
+        404 Not Found - 找不到该记录
+    """
+    try:
+        # 根据 ID 查询活动记录
+        activity = Activity.query.get_or_404(id)
+
+        # 获取请求体数据
+        data = request.get_json()
+
+        # 记录距离是否改变
+        distance_changed = False
+
+        # 更新字段（只更新提供的字段）
+        if 'type' in data:
+            # MVP 阶段只支持游泳
+            if data['type'] != 'swimming':
+                return jsonify({'error': 'MVP 阶段只支持 swimming 类型'}), 400
+            activity.type = data['type']
+
+        if 'date' in data:
+            activity.date = datetime.fromisoformat(data['date'])
+
+        if 'distance' in data:
+            new_distance = int(data['distance'])
+            if new_distance != activity.distance:
+                distance_changed = True
+                activity.distance = new_distance
+
+        if 'note' in data:
+            activity.note = data['note']
+
+        # ⭐ 如果距离改变，重新计算权重
+        if distance_changed:
+            activity.calculated_weight = calculate_swimming_weight(activity.distance)
+
+        # 提交事务
+        db.session.commit()
+
+        # 返回更新后的数据
+        return jsonify(activity.to_dict()), 200
+
+    except ValueError as e:
+        # 数据格式错误
         return jsonify({'error': f'数据格式错误：{str(e)}'}), 400
 
     except Exception as e:

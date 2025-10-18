@@ -1,11 +1,12 @@
 """
 支出管理 API
 
-提供 CRUD 操作（创建、读取、删除）
+提供 CRUD 操作（创建、读取、更新、删除）
 
 接口：
 - GET    /api/expenses       - 获取所有支出
 - POST   /api/expenses       - 创建新支出
+- PUT    /api/expenses/<id>  - 更新指定支出
 - DELETE /api/expenses/<id>  - 删除指定支出
 """
 
@@ -112,6 +113,68 @@ def create_expense():
 
     except ValueError as e:
         # 数据格式错误（如日期格式不对）
+        return jsonify({'error': f'数据格式错误：{str(e)}'}), 400
+
+    except Exception as e:
+        # 其他错误，回滚事务
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+# ========================================
+# PUT /api/expenses/<id> - 更新支出
+# ========================================
+@expenses_bp.route('/api/expenses/<int:id>', methods=['PUT'])
+def update_expense(id):
+    """
+    更新指定的支出记录
+
+    路径参数:
+        id (int): 支出记录的 ID
+
+    请求体（JSON）:
+    {
+      "type": "membership",         # 可选
+      "category": "年卡",           # 可选
+      "amount": 900,                # 可选
+      "currency": "NZD",            # 可选
+      "date": "2025-10-18",         # 可选
+      "note": "更新备注"            # 可选
+    }
+
+    返回:
+        200 OK - 更新成功，返回更新后的数据
+        404 Not Found - 找不到该记录
+    """
+    try:
+        # 根据 ID 查询支出记录
+        expense = Expense.query.get_or_404(id)
+
+        # 获取请求体中的 JSON 数据
+        data = request.get_json()
+
+        # 更新字段（只更新提供的字段）
+        if 'type' in data:
+            expense.type = data['type']
+        if 'category' in data:
+            expense.category = data['category']
+        if 'amount' in data:
+            expense.amount = float(data['amount'])
+        if 'currency' in data:
+            expense.currency = data['currency']
+        if 'date' in data:
+            expense.date = datetime.fromisoformat(data['date'])
+        if 'note' in data:
+            expense.note = data['note']
+
+        # 提交事务
+        db.session.commit()
+
+        # 返回更新后的数据
+        return jsonify(expense.to_dict()), 200
+
+    except ValueError as e:
+        # 数据格式错误
         return jsonify({'error': f'数据格式错误：{str(e)}'}), 400
 
     except Exception as e:

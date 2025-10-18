@@ -99,6 +99,17 @@ const api = {
     }),
 
     /**
+     * 更新支出
+     * @param {number} id - 支出 ID
+     * @param {object} data - 要更新的数据
+     * @returns {Promise<object>} 更新后的支出记录
+     */
+    update: (id, data) => request(`/api/expenses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+    /**
      * 删除支出
      * @param {number} id - 支出 ID
      * @returns {Promise<null>} 删除成功返回 null
@@ -133,6 +144,17 @@ const api = {
     }),
 
     /**
+     * 更新活动（如果距离改变会重新计算权重）
+     * @param {number} id - 活动 ID
+     * @param {object} data - 要更新的数据
+     * @returns {Promise<object>} 更新后的活动记录
+     */
+    update: (id, data) => request(`/api/activities/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+    /**
      * 删除活动
      * @param {number} id - 活动 ID
      * @returns {Promise<null>} 删除成功返回 null
@@ -147,19 +169,101 @@ const api = {
   // ========================================
   roi: {
     /**
-     * 获取 ROI 摘要统计
+     * 获取 ROI 摘要统计（双重计算）
      * @returns {Promise<object>} ROI 统计数据
      * {
-     *   total_expense: number,        // 总支出
-     *   total_activities: number,     // 活动总数
-     *   weighted_total: number,       // 加权总次数
-     *   average_cost: number,         // 平均单次成本
-     *   market_reference_price: number, // 市场参考价
-     *   money_saved: number,          // 节省金额
-     *   roi_percentage: number        // ROI 百分比
+     *   total_activities: number,
+     *   weighted_total: number,
+     *   market_reference_price: number,
+     *   paid: { total_expense, average_cost, money_saved, roi_percentage },
+     *   planned: { total_expense, average_cost, money_saved, roi_percentage }
      * }
      */
     getSummary: () => request('/api/roi/summary'),
+
+    /**
+     * 更新市场参考价
+     * @param {number} price - 新的市场参考价
+     * @returns {Promise<object>} 更新结果
+     */
+    updateMarketPrice: (price) => request('/api/roi/market-price', {
+      method: 'PUT',
+      body: JSON.stringify({ price }),
+    }),
+  },
+
+  // ========================================
+  // 分期合同管理
+  // ========================================
+  contracts: {
+    /**
+     * 创建分期合同
+     * @param {object} data - 合同数据
+     * @param {string} data.type - 支出类型
+     * @param {string} [data.category] - 分类
+     * @param {number} data.total_amount - 合同总金额
+     * @param {number} data.weekly_amount - 每周扣费金额
+     * @param {string} [data.currency] - 货币（默认 NZD）
+     * @param {number} data.day_of_week - 扣费日（0=周一, 6=周日）
+     * @param {string} data.start_date - 开始日期（YYYY-MM-DD）
+     * @param {string} data.end_date - 结束日期（YYYY-MM-DD）
+     * @param {string} [data.note] - 备注
+     * @returns {Promise<object>} 创建的合同记录
+     */
+    create: (data) => request('/api/contracts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+    /**
+     * 获取所有合同
+     * @returns {Promise<Array>} 合同列表
+     */
+    getAll: () => request('/api/contracts'),
+
+    /**
+     * 获取合同详情
+     * @param {number} id - 合同 ID
+     * @returns {Promise<object>} 合同详情及扣费列表
+     */
+    getById: (id) => request(`/api/contracts/${id}`),
+
+    /**
+     * 更新某期扣费记录
+     * @param {number} contractId - 合同 ID
+     * @param {number} chargeId - 扣费记录 ID
+     * @param {object} data - 要更新的数据
+     * @param {number} [data.amount] - 扣费金额
+     * @param {string} [data.status] - 扣费状态（paid/pending）
+     * @returns {Promise<object>} 更新后的扣费记录
+     */
+    updateCharge: (contractId, chargeId, data) => request(`/api/contracts/${contractId}/charges/${chargeId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+    /**
+     * 删除合同
+     * @param {number} id - 合同 ID
+     * @returns {Promise<null>} 删除成功返回 null
+     */
+    delete: (id) => request(`/api/contracts/${id}`, {
+      method: 'DELETE',
+    }),
+
+    /**
+     * 将已有支出转换为分期
+     * @param {number} expenseId - 支出 ID
+     * @param {object} data - 转换参数
+     * @param {number} data.weekly_amount - 每周扣费金额
+     * @param {number} data.day_of_week - 扣费日（0=周一, 6=周日）
+     * @param {string} data.end_date - 结束日期（YYYY-MM-DD）
+     * @returns {Promise<object>} 转换后的合同记录
+     */
+    convertFromExpense: (expenseId, data) => request(`/api/expenses/${expenseId}/convert-to-installment`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   },
 };
 

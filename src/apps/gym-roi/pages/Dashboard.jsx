@@ -11,14 +11,19 @@ import { useState } from 'react';
 import ROICard from '../components/ROICard';
 import ExpenseForm from '../components/ExpenseForm';
 import ActivityForm from '../components/ActivityForm';
+import ExpenseList from '../components/ExpenseList';
+import ActivityList from '../components/ActivityList';
 
 export default function Dashboard() {
   // 用于触发 ROI 卡片刷新
   const [refreshKey, setRefreshKey] = useState(0);
+  // 用于触发列表刷新
+  const [listRefreshKey, setListRefreshKey] = useState(0);
 
   const handleDataChange = () => {
-    // 数据变化时，触发 ROI 卡片刷新
+    // 数据变化时，触发 ROI 卡片和列表刷新
     setRefreshKey(prev => prev + 1);
+    setListRefreshKey(prev => prev + 1);
   };
 
   return (
@@ -27,7 +32,6 @@ export default function Dashboard() {
       <header style={styles.header}>
         <div style={styles.headerContent}>
           <h1 style={styles.pageTitle}>
-            <span>🏋️</span>
             <span>健身房回本计划</span>
           </h1>
           <p style={styles.subtitle}>
@@ -52,13 +56,30 @@ export default function Dashboard() {
         </div>
       </section>
 
+      {/* 数据列表区 */}
+      <section style={styles.section}>
+        <div style={styles.listsGrid}>
+          {/* 支出列表 */}
+          <ExpenseList
+            refreshTrigger={listRefreshKey}
+            onDelete={handleDataChange}
+          />
+
+          {/* 活动列表 */}
+          <ActivityList
+            refreshTrigger={listRefreshKey}
+            onDelete={handleDataChange}
+          />
+        </div>
+      </section>
+
       {/* 页脚 */}
       <footer style={styles.footer}>
         <p style={styles.footerText}>
-          💡 提示：每次添加活动后，权重会自动计算并更新 ROI 进度
+          提示：每次添加活动后，权重会自动计算并更新 ROI 进度
         </p>
         <p style={styles.footerText}>
-          📊 权重算法：高斯惩罚（少游）+ 对数奖励（多游）
+          权重算法：高斯惩罚（少游）+ 对数奖励（多游）
         </p>
       </footer>
     </div>
@@ -101,6 +122,11 @@ const styles = {
     padding: '0 40px',
   },
   formsGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '16px',  // 减小间距
+  },
+  listsGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
     gap: '16px',  // 减小间距

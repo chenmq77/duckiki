@@ -1,6 +1,184 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [2025-10-18] - MVP Day 3 完成：数据列表和删除功能
+
+### 为什么要做
+
+**目标**：完成 MVP 第 3 天的开发任务 —— 添加支出和活动的列表展示功能，并实现删除操作，完成完整的 CRUD 流程。
+
+**核心需求**：
+- ✅ 创建支出列表组件（展示所有支出记录）
+- ✅ 创建活动列表组件（展示所有活动记录及权重）
+- ✅ 实现删除支出功能（带确认对话框）
+- ✅ 实现删除活动功能（带确认对话框）
+- ✅ 集成列表到 Dashboard 页面
+- ✅ 删除后自动刷新 ROI 数据
+
+### 修改内容
+
+#### 1. 支出列表组件 (`src/apps/gym-roi/components/ExpenseList.jsx`)
+
+**核心功能**：
+- 展示所有支出记录（类型、分类、金额、货币、日期、备注）
+- 每条记录带删除按钮（🗑️）
+- 删除前确认对话框
+- 支持父组件触发刷新（通过 `refreshTrigger` prop）
+- 删除成功后通知父组件更新 ROI（通过 `onDelete` 回调）
+
+**数据格式化**：
+```javascript
+formatType('membership') → '会员费'
+formatType('equipment') → '固定资产'
+formatType('other') → '其他'
+```
+
+**UI 样式**：
+- Google News 卡片风格
+- 浅灰背景（#f8f9fa）+ 白色卡片
+- 列表项悬停效果
+- 删除按钮透明度交互
+
+#### 2. 活动列表组件 (`src/apps/gym-roi/components/ActivityList.jsx`)
+
+**核心功能**：
+- 展示所有活动记录（类型、距离、权重、日期、备注）
+- 突出显示计算的权重值（蓝色高亮）
+- 每条记录带删除按钮
+- 删除前确认对话框
+- 删除后刷新 ROI 和列表
+
+**数据展示**：
+```javascript
+// 活动项显示：
+1500m
+权重: 1.41  // 蓝色高亮，显示对数奖励结果
+2025-10-18
+```
+
+**样式特点**：
+- 与 ExpenseList 风格统一
+- 权重值使用 Google 蓝色（#1a73e8）突出显示
+- 距离用大号字体显示（18px bold）
+
+#### 3. Dashboard 页面更新 (`src/apps/gym-roi/pages/Dashboard.jsx`)
+
+**新增功能**：
+- 导入 `ExpenseList` 和 `ActivityList` 组件
+- 新增 `listRefreshKey` 状态用于触发列表刷新
+- 添加数据列表展示区域（两列布局）
+- 数据变更时同时刷新 ROI 卡片和列表
+
+**布局结构**：
+```
+Dashboard
+├── Header（标题区）
+├── ROI Card（回本进度）
+├── Forms Grid（录入表单）
+│   ├── ExpenseForm（支出录入）
+│   └── ActivityForm（活动录入）
+├── Lists Grid（数据列表）  ← 新增
+│   ├── ExpenseList（支出列表）
+│   └── ActivityList（活动列表）
+└── Footer（页脚提示）
+```
+
+**状态管理优化**：
+```javascript
+const handleDataChange = () => {
+  setRefreshKey(prev => prev + 1);      // 刷新 ROI 卡片
+  setListRefreshKey(prev => prev + 1);  // 刷新列表组件
+};
+```
+
+### 如何工作
+
+#### 数据流程：
+
+1. **页面加载**：
+   - ROICard、ExpenseList、ActivityList 各自调用 API 加载数据
+   - 独立加载，互不阻塞
+
+2. **添加数据**：
+   - ExpenseForm 或 ActivityForm 提交 → POST API
+   - 成功后调用 `onSuccess()` 回调
+   - Dashboard 的 `handleDataChange()` 触发
+   - `refreshKey` 和 `listRefreshKey` 都递增
+   - ROI 卡片和列表同时刷新
+
+3. **删除数据**：
+   - 点击删除按钮 → 弹出确认对话框
+   - 确认后 → DELETE API
+   - 成功后 → 从本地列表移除（乐观更新）
+   - 调用 `onDelete()` 回调 → 触发 ROI 刷新
+
+#### 错误处理：
+
+```javascript
+// 删除失败时的处理
+try {
+  await api.expenses.delete(id);
+  setExpenses(prev => prev.filter(item => item.id !== id));
+  if (onDelete) onDelete();
+} catch (err) {
+  alert(`删除失败: ${err.message}`);  // 用户友好的错误提示
+}
+```
+
+### 测试验证
+
+从服务器日志可以看到成功的 API 调用：
+
+```
+GET /api/expenses HTTP/1.1" 200 -      # 加载支出列表
+GET /api/activities HTTP/1.1" 200 -    # 加载活动列表
+POST /api/activities HTTP/1.1" 201 -   # 创建活动成功
+GET /api/roi/summary HTTP/1.1" 200 -   # 刷新 ROI 数据
+```
+
+**CRUD 流程验证**：
+- ✅ Create（创建）：表单提交 → 201 Created
+- ✅ Read（读取）：列表加载 → 200 OK
+- ✅ Update（更新）：权重自动计算 → calculated_weight 返回
+- ✅ Delete（删除）：删除按钮 → 确认 → 列表更新
+
+### 用户体验优化
+
+1. **确认对话框**：
+   - 删除前弹出原生确认框
+   - 防止误操作
+
+2. **乐观更新**：
+   - 删除成功后立即从列表移除
+   - 无需等待刷新接口
+
+3. **自动同步**：
+   - 任何数据变更都会自动刷新 ROI
+   - 保持数据一致性
+
+4. **状态展示**：
+   - Loading 状态：加载中...
+   - Error 状态：加载失败提示
+   - Empty 状态：暂无记录
+
+### 下一步计划
+
+Day 3 MVP 核心功能已完成！可选的下一步：
+
+**短期优化**：
+- [ ] 添加编辑功能（Update 操作）
+- [ ] 批量删除功能
+- [ ] 列表搜索/过滤
+- [ ] 导出数据功能
+
+**长期规划**：
+- [ ] 数据可视化（图表展示 ROI 趋势）
+- [ ] 移动端适配
+- [ ] 离线支持（PWA）
+- [ ] GitHub Pages 静态展示版本
+
+---
+
 
 ## [2025-10-18] - MVP Day 2 完成：前端 Dashboard 上线
 

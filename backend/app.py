@@ -44,7 +44,7 @@ CORS(app, origins=['http://localhost:5173', 'http://127.0.0.1:5173'])
 # 初始化数据库
 # ========================================
 # 导入 db 和模型
-from models import db, Expense, Activity
+from models import db, Expense, Activity, Setting, MembershipContract, WeeklyCharge
 
 # 将 db 绑定到 Flask 应用
 db.init_app(app)
@@ -55,10 +55,12 @@ db.init_app(app)
 from routes.expenses import expenses_bp
 from routes.activities import activities_bp
 from routes.roi import roi_bp
+from routes.contracts import contracts_bp
 
 app.register_blueprint(expenses_bp)
 app.register_blueprint(activities_bp)
 app.register_blueprint(roi_bp)
+app.register_blueprint(contracts_bp)
 
 # ========================================
 # 健康检查接口
@@ -103,7 +105,8 @@ def index():
             'health': '/api/health',
             'expenses': '/api/expenses',
             'activities': '/api/activities',
-            'roi': '/api/roi/summary'
+            'roi': '/api/roi/summary',
+            'contracts': '/api/contracts'
         },
         'docs': 'https://github.com/chenmq77/duckiki/blob/main/backend/README.md'
     })
@@ -113,7 +116,18 @@ def index():
 # ========================================
 with app.app_context():
     db.create_all()
-    print("✅ 数据库表创建成功！")
+    print("[OK] 数据库表创建成功！")
+
+    # 初始化默认设置（如果不存在）
+    if not Setting.query.filter_by(key='market_reference_price').first():
+        default_price = Setting(
+            key='market_reference_price',
+            value='50.0',
+            description='市场参考价格（游泳单次，NZD）'
+        )
+        db.session.add(default_price)
+        db.session.commit()
+        print("[OK] 初始化默认市场参考价：$50.0 NZD")
 
 # ========================================
 # 启动开发服务器
