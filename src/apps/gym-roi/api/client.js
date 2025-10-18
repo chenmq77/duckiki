@@ -231,6 +231,24 @@ const api = {
     getById: (id) => request(`/api/contracts/${id}`),
 
     /**
+     * 更新合同
+     * @param {number} id - 合同 ID
+     * @param {object} data - 要更新的合同数据
+     * @param {number} [data.total_amount] - 合同总金额
+     * @param {number} [data.period_amount] - 每期金额
+     * @param {string} [data.period_type] - 分期类型（weekly/monthly）
+     * @param {number} [data.day_of_week] - 每周扣费日
+     * @param {number} [data.day_of_month] - 每月扣费日
+     * @param {string} [data.start_date] - 开始日期
+     * @param {string} [data.end_date] - 结束日期
+     * @returns {Promise<object>} 更新后的合同
+     */
+    update: (id, data) => request(`/api/contracts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+    /**
      * 更新某期扣费记录
      * @param {number} contractId - 合同 ID
      * @param {number} chargeId - 扣费记录 ID

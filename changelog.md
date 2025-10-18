@@ -2,6 +2,449 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-10-19] - Bug 修复：保存53期合同却显示54期
+
+### 为什么要做
+
+**严重问题**：用户保存53期的合同，但系统显示54期，并且再次编辑时也变成54期。这导致实际扣费期数与用户预期不符。
+
+**用户反馈**："我保存的53期" "为什么显示54期" "而且点开编辑合同变成54"
+
+**根本原因**：
+1. **前端结束日期计算错误**：计算公式 `开始日期 + 期数 × 周期` 是错的，应该是 `开始日期 + (期数-1) × 周期 + 1天`
+2. **后端日期生成逻辑错误**：使用 `while current <= end_date` 会包含结束日期，导致多生成一期
+
+### 问题详解
+
+**错误的计算逻辑**：
+```
+用户设置：53期，开始 2025/10/09（周四），每周扣费
+
+旧的前端计算：
+endDate = 2025/10/09 + 53周 = 2026/10/15（周四）
+
+旧的后端生成：
+第1期: 2025/10/09 (周四)
+第2期: 2025/10/16 (周四)
+...
+第53期: 2026/10/08 (周四)
+第54期: 2026/10/15 (周四) ❌ 因为 <= end_date，多生成了一期！
+```
+
+**正确的逻辑**：
+```
+第1期 = 开始日期
+第2期 = 开始日期 + 1周
+...
+第N期 = 开始日期 + (N-1)周
+
+所以：
+第53期 = 2025/10/09 + 52周 = 2026/10/08（周四）
+结束日期 = 第53期 + 1天 = 2026/10/09（周五）
+
+后端生成时：while current < end_date
+会正确生成53期，不包含 2026/10/15
+```
+
+### 修改内容
+
+#### 1. 前端 `src/apps/gym-roi/components/ContractFormFields.jsx`
+
+**旧代码**：
+```javascript
+if (installmentData.periodType === 'weekly') {
+  // ❌ 错误：直接加 count × 7 天
+  endDate.setDate(endDate.getDate() + count * 7);
+} else if (installmentData.periodType === 'monthly') {
+  // ❌ 错误：直接加 count 个月
+  endDate.setMonth(endDate.getMonth() + count);
+}
+```
+
+**新代码**：
+```javascript
+if (installmentData.periodType === 'weekly') {
+  // ✅ 正确：最后一期 = 开始 + (期数-1)周，结束日期 = 最后一期 + 1天
+  endDate.setDate(endDate.getDate() + (count - 1) * 7 + 1);
+} else if (installmentData.periodType === 'monthly') {
+  // ✅ 正确：最后一期 = 开始 + (期数-1)月，结束日期 = 最后一期 + 1天
+  endDate.setMonth(endDate.getMonth() + (count - 1));
+  endDate.setDate(endDate.getDate() + 1);
+}
+```
+
+#### 2. 后端 `backend/routes/contracts.py`
+
+**周扣费生成 (line 63)**：
+```python
+# 旧代码
+while current <= end_date:  # ❌ 包含 end_date，会多生成一期
+    dates.append(current)
+    current += timedelta(weeks=1)
+
+# 新代码
+while current < end_date:   # ✅ 不包含 end_date
+    dates.append(current)
+    current += timedelta(weeks=1)
+```
+
+**月扣费生成 (line 98)**：
+```python
+# 旧代码
+while current <= end_date:  # ❌ 包含 end_date，会多生成一期
+    dates.append(current)
+    current = current + relativedelta(months=1)
+
+# 新代码
+while current < end_date:   # ✅ 不包含 end_date
+    dates.append(current)
+    current = current + relativedelta(months=1)
+```
+
+### 验证示例
+
+**场景：53期周扣费合同**
+- 开始日期：2025/10/09（周四）
+- 期数：53
+- 扣费日：周四
+
+**修复后的行为**：
+1. 前端计算结束日期：
+   - 第53期 = 2025/10/09 + 52周 = 2026/10/08
+   - 结束日期 = 2026/10/08 + 1天 = **2026/10/09**
+2. 后端生成扣费日期：
+   - 从 2025/10/09 开始
+   - 每周四生成一期
+   - 直到 `< 2026/10/09`
+   - 最后一期：2026/10/08（第53期）✅
+   - 不包含 2026/10/15（这是第54期）
+
+**结果**：正好生成 **53期**，与用户输入一致！
+
+---
+
+## [2025-10-19] - Bug 修复：分期数变化时未触发双向计算
+
+### 为什么要做
+
+**问题**：用户在编辑合同时，修改分期数后，每期金额和结束日期没有自动更新。这违反了"总金额 = 期数 × 每期金额"的恒等式。
+
+**用户反馈**："编辑合同 我调整分期数 总金额或者每期金额都没变化" "应该时刻保证 总金额=期数*每期价格的吧"
+
+**根本原因**：useEffect 的依赖数组不完整，导致 React 不会在所有必要的情况下触发重新计算。
+
+### 修改内容
+
+#### `src/apps/gym-roi/components/ContractFormFields.jsx`
+
+**问题代码**：
+```javascript
+useEffect(() => {
+  if (formData.amount && installmentData.periodCount) {
+    const total = parseFloat(formData.amount);
+    const count = parseInt(installmentData.periodCount);
+    if (!isNaN(total) && !isNaN(count) && count > 0) {
+      const perPeriod = total / count;
+      onInstallmentChange({
+        ...installmentData,
+        perPeriodAmount: perPeriod.toFixed(2)
+      });
+    }
+  }
+}, [formData.amount, installmentData.periodCount]); // ❌ 缺少依赖
+```
+
+**修复后**：
+```javascript
+useEffect(() => {
+  if (formData.amount && installmentData.periodCount) {
+    const total = parseFloat(formData.amount);
+    const count = parseInt(installmentData.periodCount);
+    if (!isNaN(total) && !isNaN(count) && count > 0) {
+      const perPeriod = total / count;
+      const newPerPeriod = perPeriod.toFixed(2);
+
+      // ✅ 只有当计算出的值与当前值不同时才更新，避免无限循环
+      if (newPerPeriod !== installmentData.perPeriodAmount) {
+        onInstallmentChange({
+          ...installmentData,
+          perPeriodAmount: newPerPeriod
+        });
+      }
+    }
+  }
+}, [formData.amount, installmentData.periodCount, installmentData.perPeriodAmount, installmentData, onInstallmentChange]); // ✅ 完整依赖
+```
+
+**同样修复了结束日期计算**：
+```javascript
+useEffect(() => {
+  // ... 计算逻辑
+  const newEndDate = endDate.toISOString().split('T')[0];
+
+  // ✅ 只有当计算出的值与当前值不同时才更新
+  if (newEndDate !== installmentData.endDate) {
+    onInstallmentChange({
+      ...installmentData,
+      endDate: newEndDate
+    });
+  }
+}, [formData.date, installmentData.periodCount, installmentData.periodType, installmentData.endDate, installmentData, onInstallmentChange]);
+```
+
+### 技术实现
+
+**关键修复点**：
+1. **完整依赖数组**：添加了 `installmentData`、`installmentData.perPeriodAmount`、`installmentData.endDate` 和 `onInstallmentChange`
+2. **防止无限循环**：在更新前检查新值是否与当前值不同 (`if (newValue !== currentValue)`)
+3. **确保响应性**：现在当分期数改变时，useEffect 会正确触发
+
+**为什么需要完整依赖**：
+- React 的 useEffect 需要完整的依赖数组来决定何时重新运行
+- 缺少依赖会导致 effect 使用过时的闭包值
+- React DevTools 会警告 "missing dependencies in useEffect"
+
+**为什么需要比较值**：
+- 当依赖数组包含对象时，对象的任何变化都会触发 effect
+- 如果不比较值就直接更新，会导致无限循环：
+  - Effect 更新 installmentData → 触发 effect → 再次更新 → 无限循环
+- 比较值后只在真正需要时更新，打破循环
+
+### 验证方法
+
+**测试场景**：
+1. 打开编辑合同模态框
+2. 修改分期数（如 53 → 54）
+3. ✅ 每期金额应自动更新：884 ÷ 54 = 16.37
+4. ✅ 结束日期应自动更新：2025/10/09 + 54周 = 2026/10/22
+
+**计算验证**：
+- 总金额 = 期数 × 每期金额 (恒等式始终成立)
+- 结束日期 = 开始日期 + (期数 × 周期间隔)
+
+---
+
+## [2025-10-19] - 组件重构：ContractFormFields 复用与代码优化
+
+### 为什么要做
+
+**目标**：消除代码重复，实现组件复用。创建和编辑分期合同功能使用了相同的表单逻辑，但代码完全重复。重构为共享组件可以：
+- ✅ 减少代码重复，降低维护成本
+- ✅ 确保创建和编辑使用完全一致的 UI 和逻辑
+- ✅ 未来修改只需改一处，避免逻辑漂移
+
+**用户反馈**：用户在看到编辑合同表单时提出："这里你编辑合同不能用当初填写分期的同一个组件么？"并批准立即重构："现在就重构 现在只是MVP阶段 可以重构"
+
+### 修改内容
+
+#### 1. 新建共享组件 `src/apps/gym-roi/components/ContractFormFields.jsx`
+
+**组件设计**：
+```javascript
+export default function ContractFormFields({
+  formData,        // { amount, date }
+  installmentData, // { periodType, periodCount, perPeriodAmount, dayOfWeek, dayOfMonth, endDate }
+  onFormChange,
+  onInstallmentChange,
+  mode = 'create', // 'create' 或 'edit'
+})
+```
+
+**核心功能**：
+- 三行紧凑布局：分期方式+期数+扣费日 | 总金额↔每期金额 | 开始日期→结束日期
+- 双向计算：总金额 ↔ 每期金额自动联动
+- 自动计算结束日期：基于开始日期 + 期数 + 分期类型
+- 支持每周/每月两种分期类型
+- 所有表单验证和状态管理逻辑封装
+
+#### 2. 重构 `src/apps/gym-roi/components/ExpenseForm.jsx`
+
+**删除的代码**：
+- `handleInstallmentChange` 函数
+- 双向计算的 useEffect hooks (lines 88-100, 102-122)
+- 自动计算结束日期的 useEffect (lines 124-147)
+- 整个分期表单 UI (lines 346-470)
+- 所有分期表单样式 (installmentFields, compactRow, bidirectionalRow, etc.)
+
+**新代码**：
+```javascript
+import ContractFormFields from './ContractFormFields';
+
+{paymentMode === 'installment' && (
+  <ContractFormFields
+    formData={formData}
+    installmentData={installmentData}
+    onFormChange={setFormData}
+    onInstallmentChange={setInstallmentData}
+    mode="create"
+  />
+)}
+```
+
+**代码减少**：约 200 行 → 7 行
+
+#### 3. 重构 `src/apps/gym-roi/components/ExpenseList.jsx`
+
+**数据结构调整** - `openContractEditModal`:
+```javascript
+// 旧结构：扁平化
+setEditContractData({
+  contract_id: contract.id,
+  total_amount: details.contract.total_amount,
+  period_amount: details.contract.period_amount,
+  total_periods: totalPeriods,
+  period_type: details.contract.period_type,
+  day_of_week: details.contract.day_of_week,
+  day_of_month: details.contract.day_of_month,
+  start_date: details.contract.start_date,
+});
+
+// 新结构：符合 ContractFormFields 期望
+setEditContractData({
+  contract_id: contract.id,
+  formData: {
+    amount: details.contract.total_amount.toString(),
+    date: details.contract.start_date,
+  },
+  installmentData: {
+    periodType: details.contract.period_type,
+    periodCount: totalPeriods.toString(),
+    perPeriodAmount: details.contract.period_amount.toString(),
+    dayOfWeek: details.contract.day_of_week ?? 0,
+    dayOfMonth: details.contract.day_of_month ?? 1,
+    endDate: details.contract.end_date || '',
+  }
+});
+```
+
+**saveContractEdit 简化**：
+```javascript
+// 旧：手动计算结束日期
+const startDate = new Date(editContractData.start_date);
+let endDate;
+if (editContractData.period_type === 'weekly') {
+  endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + (editContractData.total_periods * 7));
+} else {
+  endDate = new Date(startDate);
+  endDate.setMonth(endDate.getMonth() + editContractData.total_periods);
+}
+
+// 新：直接使用已计算好的值
+const { formData, installmentData } = editContractData;
+// installmentData.endDate 已自动计算
+```
+
+**模态框表单替换** (lines 502-620):
+```javascript
+// 旧：118 行自定义表单代码
+<div style={styles.contractEditForm}>
+  {/* 合同总金额 */}
+  <div style={styles.formGroup}>...</div>
+  {/* 每期金额 */}
+  <div style={styles.formGroup}>...</div>
+  {/* 期数 */}
+  <div style={styles.formGroup}>...</div>
+  {/* 分期类型 */}
+  <div style={styles.formGroup}>...</div>
+  {/* 扣费日 */}
+  {editContractData.period_type === 'weekly' ? ... : ...}
+  {/* 开始日期 */}
+  <div style={styles.formGroup}>...</div>
+</div>
+
+// 新：14 行组件调用
+<ContractFormFields
+  formData={editContractData.formData}
+  installmentData={editContractData.installmentData}
+  onFormChange={(newFormData) => setEditContractData({
+    ...editContractData,
+    formData: newFormData
+  })}
+  onInstallmentChange={(newInstallmentData) => setEditContractData({
+    ...editContractData,
+    installmentData: newInstallmentData
+  })}
+  mode="edit"
+/>
+```
+
+### 技术实现
+
+**组件复用模式**：
+- **Props 传递**：通过 formData 和 installmentData 分离数据
+- **回调函数**：onFormChange 和 onInstallmentChange 处理状态更新
+- **模式标识**：mode 参数用于未来可能的 create/edit 差异
+
+**自动计算逻辑封装**：
+```javascript
+// 在 ContractFormFields 中
+useEffect(() => {
+  // 双向计算：总金额/期数 → 每期金额
+  if (formData.amount && installmentData.periodCount) {
+    const perPeriod = parseFloat(formData.amount) / parseInt(installmentData.periodCount);
+    onInstallmentChange({ ...installmentData, perPeriodAmount: perPeriod.toFixed(2) });
+  }
+}, [formData.amount, installmentData.periodCount]);
+
+useEffect(() => {
+  // 自动计算结束日期
+  if (formData.date && installmentData.periodCount && installmentData.periodType) {
+    let endDate = new Date(formData.date);
+    if (installmentData.periodType === 'weekly') {
+      endDate.setDate(endDate.getDate() + parseInt(installmentData.periodCount) * 7);
+    } else {
+      endDate.setMonth(endDate.getMonth() + parseInt(installmentData.periodCount));
+    }
+    onInstallmentChange({ ...installmentData, endDate: endDate.toISOString().split('T')[0] });
+  }
+}, [formData.date, installmentData.periodCount, installmentData.periodType]);
+```
+
+### 如何实现
+
+**重构步骤**：
+1. 创建 ContractFormFields.jsx，提取所有表单字段和逻辑
+2. 更新 ExpenseForm.jsx：
+   - 导入 ContractFormFields
+   - 删除重复的 handler 和 useEffect
+   - 替换表单 JSX 为组件调用
+   - 删除未使用的样式
+3. 更新 ExpenseList.jsx：
+   - 导入 ContractFormFields
+   - 调整 editContractData 数据结构
+   - 简化 saveContractEdit 逻辑
+   - 替换模态框表单为组件调用
+
+**数据流**：
+```
+ExpenseForm/ExpenseList
+  ↓ (传递 props)
+ContractFormFields
+  ↓ (用户输入)
+自动计算 (useEffect)
+  ↓ (回调)
+ExpenseForm/ExpenseList (更新状态)
+```
+
+### 收益
+
+**代码减少**：
+- ExpenseForm.jsx: ~200 行 → ~10 行 (净减少 ~190 行)
+- ExpenseList.jsx: ~120 行 → ~15 行 (净减少 ~105 行)
+- **总计**: 净减少约 **295 行重复代码**
+
+**维护性提升**：
+- 单一真相来源：所有分期表单逻辑集中在 ContractFormFields
+- DRY 原则：Don't Repeat Yourself
+- 未来修改只需改一处，自动同步到创建和编辑功能
+
+**一致性保证**：
+- 创建和编辑使用完全相同的 UI
+- 计算逻辑完全一致，避免 bug
+
+---
+
 ## [2025-10-18] - 分期付款 UI 优化：智能表单与灵活期数支持
 
 ### 为什么要做

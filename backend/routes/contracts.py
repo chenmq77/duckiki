@@ -7,6 +7,7 @@
 - POST /api/contracts              - 创建分期合同并生成周扣费记录
 - GET /api/contracts               - 获取所有合同
 - GET /api/contracts/:id           - 获取合同详情及扣费列表
+- PUT /api/contracts/:id           - 更新合同并重新生成扣费记录
 - PUT /api/contracts/:id/charges/:charge_id  - 更新某期扣费
 - DELETE /api/contracts/:id        - 删除合同及所有相关记录
 - POST /api/expenses/:id/convert-to-installment  - 将全额支出转为分期
@@ -58,8 +59,8 @@ def generate_weekly_charge_dates(start_date, end_date, day_of_week):
 
     current = first_charge_date
 
-    # 生成所有扣费日期
-    while current <= end_date:
+    # 生成所有扣费日期（不包含 end_date 本身，end_date 是最后一天的上限）
+    while current < end_date:
         dates.append(current)
         current += timedelta(weeks=1)
 
@@ -93,8 +94,8 @@ def generate_monthly_charge_dates(start_date, end_date, day_of_month):
 
     current = first_charge_date
 
-    # 生成所有扣费日期
-    while current <= end_date:
+    # 生成所有扣费日期（不包含 end_date 本身，end_date 是最后一天的上限）
+    while current < end_date:
         dates.append(current)
         # 每次加一个月
         current = current + relativedelta(months=1)
@@ -391,6 +392,172 @@ def update_charge(id, charge_id):
         return jsonify({
             'charge': charge.to_dict(),
             'message': '更新成功'
+        }), 200
+
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'error': f'数据格式错误：{str(e)}'}), 400
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+# ========================================
+# PUT /api/contracts/:id - 更新合同
+# ========================================
+@contracts_bp.route('/api/contracts/<int:id>', methods=['PUT'])
+def update_contract(id):
+    """
+    更新合同并重新生成扣费记录
+
+    请求体（JSON）:
+    {
+      "total_amount": 916.0,
+      "period_amount": 17.0,
+      "period_type": "weekly",
+      "day_of_week": 0,
+      "day_of_month": null,
+      "start_date": "2025-01-01",
+      "end_date": "2025-12-31"
+    }
+
+    返回:
+    {
+      "contract": {...},
+      "charges_count": 52,
+      "message": "合同更新成功"
+    }
+    """
+    try:
+        contract = MembershipContract.query.get_or_404(id)
+        parent_expense = Expense.query.get(contract.expense_id)
+
+        if not parent_expense:
+            return jsonify({'error': '未找到关联的父支出'}), 404
+
+        data = request.get_json()
+
+        # 更新合同字段
+        if 'total_amount' in data:
+            contract.total_amount = float(data['total_amount'])
+            parent_expense.amount = float(data['total_amount'])
+
+        if 'period_amount' in data:
+            contract.period_amount = float(data['period_amount'])
+
+        if 'period_type' in data:
+            contract.period_type = data['period_type']
+
+        if 'day_of_week' in data:
+            contract.day_of_week = int(data['day_of_week']) if data['day_of_week'] is not None else None
+
+        if 'day_of_month' in data:
+            contract.day_of_month = int(data['day_of_month']) if data['day_of_month'] is not None else None
+
+        if 'start_date' in data:
+            contract.start_date = datetime.fromisoformat(data['start_date']).date()
+            parent_expense.date = contract.start_date
+
+        if 'end_date' in data:
+            contract.end_date = datetime.fromisoformat(data['end_date']).date()
+
+        # 验证日期合法性
+        if contract.start_date >= contract.end_date:
+            return jsonify({'error': '开始日期必须早于结束日期'}), 400
+
+        # 1. 保存已付款期的状态（日期 -> 是否已付）
+        old_charges = WeeklyCharge.query.filter_by(contract_id=id).all()
+        paid_dates = set()
+        for charge in old_charges:
+            if charge.status == 'paid':
+                paid_dates.add(charge.charge_date)
+
+        # 2. 删除所有旧的子支出记录
+        for charge in old_charges:
+            if charge.expense_id:
+                child_expense = Expense.query.get(charge.expense_id)
+                if child_expense:
+                    db.session.delete(child_expense)
+
+        # 3. 删除所有旧的扣费记录
+        WeeklyCharge.query.filter_by(contract_id=id).delete()
+
+        # 4. 重新生成扣费日期（根据新的分期类型）
+        if contract.period_type == 'weekly':
+            if contract.day_of_week is None:
+                return jsonify({'error': '周扣费模式需要提供 day_of_week'}), 400
+            charge_dates = generate_weekly_charge_dates(
+                contract.start_date,
+                contract.end_date,
+                contract.day_of_week
+            )
+        elif contract.period_type == 'monthly':
+            if contract.day_of_month is None:
+                return jsonify({'error': '月扣费模式需要提供 day_of_month'}), 400
+            charge_dates = generate_monthly_charge_dates(
+                contract.start_date,
+                contract.end_date,
+                contract.day_of_month
+            )
+        else:
+            return jsonify({'error': f'不支持的分期类型：{contract.period_type}'}), 400
+
+        today = datetime.now().date()
+        paid_count = 0
+        pending_count = 0
+
+        # 5. 创建新的扣费记录
+        for charge_date in charge_dates:
+            # 如果这个日期之前已经支付过，或者日期在今天之前，标记为已付
+            if charge_date in paid_dates or charge_date <= today:
+                status = 'paid'
+                paid_count += 1
+
+                # 创建新的子支出
+                child_expense = Expense(
+                    type=parent_expense.type,
+                    category=parent_expense.category,
+                    amount=contract.period_amount,
+                    currency=parent_expense.currency,
+                    date=charge_date,
+                    note=f"{parent_expense.category} - 第 {paid_count} 期",
+                    parent_expense_id=parent_expense.id,
+                    is_installment=False
+                )
+                db.session.add(child_expense)
+                db.session.flush()
+
+                weekly_charge = WeeklyCharge(
+                    contract_id=contract.id,
+                    expense_id=child_expense.id,
+                    charge_date=charge_date,
+                    amount=contract.period_amount,
+                    status=status
+                )
+            else:
+                status = 'pending'
+                pending_count += 1
+
+                weekly_charge = WeeklyCharge(
+                    contract_id=contract.id,
+                    expense_id=None,
+                    charge_date=charge_date,
+                    amount=contract.period_amount,
+                    status=status
+                )
+
+            db.session.add(weekly_charge)
+
+        # 6. 提交所有更改
+        db.session.commit()
+
+        return jsonify({
+            'contract': contract.to_dict(),
+            'charges_count': len(charge_dates),
+            'paid_count': paid_count,
+            'pending_count': pending_count,
+            'message': '合同更新成功'
         }), 200
 
     except ValueError as e:
