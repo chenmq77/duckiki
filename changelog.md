@@ -2,7 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2025-10-19] - Bug 修复：编辑分期子支出金额时，付款明细未同步更新
+## [2025-10-19] - Bug 修复：编辑分期金额时，多处数据未同步更新（完整版）
+
+### 概述
+
+修复了两个编辑入口的数据同步问题：
+1. **支出列表**中编辑子支出（如"年卡 - 第2期"）
+2. **付款明细**中编辑 charge 记录（已付或待付）
+
+两处编辑都需要原子性地同步更新 3-4 个数据库表/记录。
+
+---
+
+## [2025-10-19] - Bug 修复（场景1）：在支出列表中编辑分期子支出金额
 
 ### 为什么要做
 
@@ -130,6 +142,152 @@ if 'amount' in data:
 - `weekly_charges` 表：记录**计划中的扣费**（包括已付和待付）
 
 这两张表的职责不同，都需要有 `amount` 字段。问题只是业务逻辑中缺少了同步更新，现在已经修复了。
+
+---
+
+## [2025-10-19] - Bug 修复（场景2）：在付款明细中编辑 charge 金额
+
+### 为什么要做
+
+**问题**：用户在付款明细中编辑某一期（已付或待付）的金额时，只更新了 `weekly_charges` 表，没有同步更新其他相关表，导致数据不一致。
+
+**用户反馈**："那么当我在付款明细这里修改未来账单或历史账单的金额的时候 你检查一下要同步修改哪些数据库的信息 原子性同步哪些数据？"
+
+### 需要同步的数据
+
+#### 情况1：编辑"已付"期的金额（status = 'paid'）
+需要原子性同步更新 **4个地方**：
+```
+① weekly_charges 表（该期）    - amount
+② expenses 表（子记录）        - amount（该期对应的子支出）
+③ membership_contracts 表      - total_amount（重新计算所有期之和）
+④ expenses 表（父记录）        - amount（分期合同总支出）
+```
+
+#### 情况2：编辑"待付"期的金额（status = 'pending'）
+需要原子性同步更新 **3个地方**：
+```
+① weekly_charges 表（该期）    - amount
+② membership_contracts 表      - total_amount（重新计算所有期之和）
+③ expenses 表（父记录）        - amount（分期合同总支出）
+```
+（待付状态没有子 expense，所以不需要更新第②项）
+
+### 修改内容
+
+**文件**：`backend/routes/contracts.py` (352-373行)
+
+**API**：`PUT /api/contracts/:id/charges/:charge_id`
+
+**修改前**：只更新 `weekly_charges` 表
+```python
+if 'amount' in data:
+    charge.amount = float(data['amount'])
+```
+
+**修改后**：同步更新 3-4 个地方
+```python
+if 'amount' in data:
+    new_amount = float(data['amount'])
+    charge.amount = new_amount
+
+    # ① 如果该期已付，同步更新子支出
+    if charge.status == 'paid' and charge.expense_id:
+        child_expense = Expense.query.get(charge.expense_id)
+        if child_expense:
+            child_expense.amount = new_amount
+
+    # ② 重新计算合同总金额
+    contract = MembershipContract.query.get(charge.contract_id)
+    if contract:
+        all_charges = WeeklyCharge.query.filter_by(contract_id=contract.id).all()
+        new_total = sum(c.amount for c in all_charges)
+        contract.total_amount = new_total
+
+        # ③ 同步更新父 expense 的金额
+        parent_expense = Expense.query.get(contract.expense_id)
+        if parent_expense:
+            parent_expense.amount = new_total
+```
+
+### 效果
+
+无论从哪个入口编辑分期金额，都能保证：
+- ✅ 支出列表中的金额正确
+- ✅ 付款明细中的金额正确
+- ✅ 合同总金额自动重新计算
+- ✅ 所有表数据完全一致
+- ✅ 原子性操作（同一事务）
+
+### 完整同步矩阵
+
+| 编辑入口 | API | 同步更新的表/记录 |
+|---------|-----|-----------------|
+| 支出列表（已付子支出） | `PUT /api/expenses/:id` | ① expenses(子) ② weekly_charges ③ contracts ④ expenses(父) |
+| 付款明细（已付 charge） | `PUT /api/contracts/:id/charges/:charge_id` | ① weekly_charges ② expenses(子) ③ contracts ④ expenses(父) |
+| 付款明细（待付 charge） | `PUT /api/contracts/:id/charges/:charge_id` | ① weekly_charges ② contracts ③ expenses(父) |
+
+---
+
+## [2025-10-19] - UX 优化：消除付款明细编辑时的页面闪烁
+
+### 为什么要做
+
+**问题**：在付款明细中编辑 charge 金额或切换状态时，页面会出现明显的闪烁，用户体验不佳。
+
+**用户反馈**："修改的很好！ 但是更新的时候会屏闪 这个怎么办"
+
+**根本原因**：每次保存 charge 后，前端会同时重新加载：
+1. 合同详情（模态框内）✅ 必要
+2. **整个支出列表**（背景页面）❌ 不必要，导致闪烁
+
+### 解决方案
+
+**优化策略**：延迟加载 - 只在必要时刷新支出列表
+
+**修改前**：每次保存后立即刷新所有数据
+```javascript
+await Promise.all([
+  api.contracts.getById(contractId).then(details => setContractDetails(details)),
+  loadExpenses()  // ❌ 导致背景页面闪烁
+]);
+```
+
+**修改后**：保存时只更新模态框，关闭时才更新列表
+```javascript
+// 保存时：只更新模态框内数据
+const details = await api.contracts.getById(contractId);
+setContractDetails(details);
+
+// 关闭模态框时：才更新支出列表
+onClick={() => {
+  setShowChargesModal(false);
+  setContractDetails(null);
+  loadExpenses();  // ✅ 在关闭时才刷新，用户看不到
+}}
+```
+
+### 修改内容
+
+**文件**：`src/apps/gym-roi/components/ExpenseList.jsx`
+
+**修改位置**：
+1. `saveEditCharge` 函数 (209-225行)
+2. `toggleChargeStatus` 函数 (228-243行)
+3. 模态框关闭逻辑 (570-575行, 732-739行)
+
+### 效果
+
+- ✅ 编辑 charge 时，模态框内数据立即更新
+- ✅ 背景页面不会闪烁
+- ✅ 关闭模态框时才刷新支出列表
+- ✅ 用户体验更流畅自然
+- ✅ 数据一致性不受影响
+
+**技术要点**：
+- 后端已经原子性地同步更新了所有表
+- 前端只需在用户看不到的时候刷新列表
+- 延迟加载策略提升了用户体验
 
 ---
 

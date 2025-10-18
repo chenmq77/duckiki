@@ -213,13 +213,11 @@ export default function ExpenseList({ refreshTrigger, onDelete }) {
       setEditingChargeId(null);
       setEditChargeData({});
 
-      // 重新加载合同详情和支出列表
-      await Promise.all([
-        api.contracts.getById(contractId).then(details => setContractDetails(details)),
-        loadExpenses()
-      ]);
+      // 只重新加载合同详情（模态框内数据），不重新加载支出列表以避免闪烁
+      const details = await api.contracts.getById(contractId);
+      setContractDetails(details);
 
-      // 刷新 ROI
+      // 刷新 ROI（这个操作不会导致页面闪烁）
       if (onDelete) onDelete();
     } catch (err) {
       alert(`更新失败: ${err.message}`);
@@ -233,13 +231,11 @@ export default function ExpenseList({ refreshTrigger, onDelete }) {
     try {
       await api.contracts.updateCharge(contractId, chargeId, { status: newStatus });
 
-      // 重新加载合同详情和支出列表（确保同步）
-      await Promise.all([
-        api.contracts.getById(contractId).then(details => setContractDetails(details)),
-        loadExpenses()
-      ]);
+      // 只重新加载合同详情（模态框内数据），不重新加载支出列表以避免闪烁
+      const details = await api.contracts.getById(contractId);
+      setContractDetails(details);
 
-      // 刷新 ROI
+      // 刷新 ROI（这个操作不会导致页面闪烁）
       if (onDelete) onDelete();
     } catch (err) {
       alert(`更新失败: ${err.message}`);
@@ -571,7 +567,12 @@ export default function ExpenseList({ refreshTrigger, onDelete }) {
 
       {/* 查看明细模态框 */}
       {showChargesModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowChargesModal(false)}>
+        <div style={styles.modalOverlay} onClick={() => {
+          setShowChargesModal(false);
+          setContractDetails(null);
+          // 关闭模态框时重新加载支出列表，确保数据同步
+          loadExpenses();
+        }}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginBottom: '16px', fontSize: '18px', fontWeight: '500' }}>
               付款明细 - {selectedContract?.category}
@@ -736,6 +737,8 @@ export default function ExpenseList({ refreshTrigger, onDelete }) {
             <button onClick={() => {
               setShowChargesModal(false);
               setContractDetails(null);
+              // 关闭模态框时重新加载支出列表，确保数据同步
+              loadExpenses();
             }} style={styles.closeButton}>
               关闭
             </button>

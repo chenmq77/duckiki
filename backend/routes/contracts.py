@@ -350,7 +350,27 @@ def update_charge(id, charge_id):
 
         # 更新金额
         if 'amount' in data:
-            charge.amount = float(data['amount'])
+            new_amount = float(data['amount'])
+            charge.amount = new_amount
+
+            # 🔄 同步更新相关记录
+            # 如果该期已付，需要同步更新对应的子支出
+            if charge.status == 'paid' and charge.expense_id:
+                child_expense = Expense.query.get(charge.expense_id)
+                if child_expense:
+                    child_expense.amount = new_amount
+
+            # 🔄 重新计算合同总金额（已付 + 待付）
+            contract = MembershipContract.query.get(charge.contract_id)
+            if contract:
+                all_charges = WeeklyCharge.query.filter_by(contract_id=contract.id).all()
+                new_total = sum(c.amount for c in all_charges)
+                contract.total_amount = new_total
+
+                # 🔄 同步更新父 expense 的金额
+                parent_expense = Expense.query.get(contract.expense_id)
+                if parent_expense:
+                    parent_expense.amount = new_total
 
         # 更新状态
         if 'status' in data:
