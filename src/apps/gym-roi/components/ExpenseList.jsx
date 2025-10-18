@@ -112,9 +112,9 @@ export default function ExpenseList({ refreshTrigger, onDelete }) {
   // 格式化显示名称
   const formatDisplayName = (expense) => {
     if (expense.is_installment && !expense.parent_expense_id) {
-      // 分期合同父支出
-      const childrenCount = expenses.filter(e => e.parent_expense_id === expense.id).length;
-      return `${expense.category || '分期合同'} (共${childrenCount}期)`;
+      // 分期合同父支出 - 使用合同的总期数
+      const totalPeriods = expense.contract_info?.total_periods || 0;
+      return `${expense.category || '分期合同'}（共${totalPeriods}期）`;
     } else if (expense.parent_expense_id) {
       // 分期子支出
       const installmentNum = getInstallmentInfo(expense);
@@ -275,6 +275,8 @@ const styles = {
     padding: '20px',
     boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
     border: '1px solid #dadce0',
+    minWidth: 0,  // 允许 flex 子元素收缩
+    overflow: 'hidden',  // 防止内容溢出
   },
   title: {
     fontSize: '16px',
@@ -304,29 +306,44 @@ const styles = {
   type: {
     color: '#5f6368',
     fontWeight: '500',
+    width: '60px',
     minWidth: '60px',
+    maxWidth: '60px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   category: {
     fontSize: '13px',
     color: '#202124',
-    minWidth: '120px',
+    width: '140px',
+    minWidth: '140px',
+    maxWidth: '140px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   amount: {
     fontSize: '15px',
     fontWeight: '500',
     color: '#202124',
-    minWidth: '100px',
+    width: '110px',
+    minWidth: '110px',
+    maxWidth: '110px',
   },
   date: {
     fontSize: '12px',
     color: '#5f6368',
+    width: '90px',
     minWidth: '90px',
+    maxWidth: '90px',
   },
   note: {
     fontSize: '12px',
     color: '#5f6368',
     fontStyle: 'italic',
     flex: 1,
+    maxWidth: '300px',  // 限制最大宽度
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',

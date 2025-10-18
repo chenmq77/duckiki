@@ -554,7 +554,7 @@ const styles = {
     transition: 'border-color 0.2s',
   },
   select: {
-    padding: '10px 12px',
+    padding: '10px 32px 10px 12px',
     border: '1px solid #d1d5db',
     borderRadius: '8px',
     fontSize: '14px',
@@ -586,7 +586,7 @@ const styles = {
     outline: 'none',
   },
   currencySelect: {
-    padding: '8px 10px',
+    padding: '8px 28px 8px 10px',
     border: '1px solid #d1d5db',
     borderRadius: '4px',
     fontSize: '14px',
@@ -681,7 +681,7 @@ const styles = {
     outline: 'none',
   },
   smallSelect: {
-    padding: '6px 8px',
+    padding: '6px 28px 6px 8px',
     border: '1px solid #d1d5db',
     borderRadius: '4px',
     fontSize: '13px',

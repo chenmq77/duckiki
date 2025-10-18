@@ -91,10 +91,13 @@ class Expense(db.Model):
           "currency": "NZD",
           "date": "2025-10-17",
           "note": "周扣费年卡",
-          "created_at": "2025-10-18T10:30:15"
+          "created_at": "2025-10-18T10:30:15",
+          "contract_info": {  // 如果是分期合同父记录，包含合同信息
+            "total_periods": 52
+          }
         }
         """
-        return {
+        result = {
             'id': self.id,
             'type': self.type,
             'category': self.category,
@@ -106,6 +109,22 @@ class Expense(db.Model):
             'parent_expense_id': self.parent_expense_id,
             'is_installment': self.is_installment
         }
+
+        # 如果是分期合同父记录，加入合同信息
+        if self.is_installment and not self.parent_expense_id:
+            # 查询关联的合同
+            try:
+                contract = MembershipContract.query.filter_by(expense_id=self.id).first()
+                if contract:
+                    # 获取合同关联的所有扣费记录数量作为总期数
+                    total_periods = WeeklyCharge.query.filter_by(contract_id=contract.id).count()
+                    result['contract_info'] = {
+                        'total_periods': total_periods
+                    }
+            except:
+                pass  # 如果查询失败，就不添加 contract_info
+
+        return result
 
     def __repr__(self):
         """

@@ -130,6 +130,8 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
     gap: '16px',  // 减小间距
+    width: '100%',
+    overflow: 'hidden',  // 防止子元素溢出
   },
   footer: {
     maxWidth: '1400px',

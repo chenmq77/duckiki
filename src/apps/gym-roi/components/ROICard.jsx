@@ -46,7 +46,7 @@ export default function ROICard() {
 
     const { total_expense, roi_percentage } = roiStats;
 
-    // 回本目标：ROI >= 0%
+    // 回本目标：ROI > 0%
     // 进度计算：min(100, (roi + 100) / 100 * 100)
     // roi = -80 -> progress = 20%
     // roi = 0 -> progress = 100%
@@ -127,7 +127,7 @@ export default function ROICard() {
   const currentStats = roiData[displayMode];
   const progress = calculateBreakEvenProgress(currentStats);
   const remaining = calculateRemainingActivities(currentStats);
-  const isBreakEven = currentStats.roi_percentage >= 0;
+  const isBreakEven = currentStats.roi_percentage > 0;
 
   return (
     <div style={styles.card}>
@@ -227,23 +227,38 @@ export default function ROICard() {
               <button onClick={savePrice} style={styles.priceSaveBtn}>✓</button>
               <button onClick={cancelEditPrice} style={styles.priceCancelBtn}>×</button>
             </div>
-          ) : (
-            <div style={styles.priceDisplayRow}>
+          ) : roiData.market_reference_price > 0 ? (
+            <div
+              style={styles.priceDisplayRow}
+              onClick={startEditPrice}
+              className="price-display-clickable"
+              title="点击编辑市场价"
+            >
               <div style={styles.metricValue}>
                 ${roiData.market_reference_price.toFixed(2)}
                 <span style={styles.metricUnit}>/次</span>
               </div>
-              <button
-                onClick={startEditPrice}
-                style={styles.editPriceBtn}
-                title="编辑市场价"
-                className="edit-price-btn"
-              >
+              <div style={styles.editPriceBtn} className="edit-price-btn">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                 </svg>
-              </button>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={styles.priceEmptyRow}
+              onClick={startEditPrice}
+              className="price-display-clickable"
+              title="点击设置市场价"
+            >
+              <div style={styles.metricValueEmpty}>--</div>
+              <div style={styles.editPriceBtnVisible}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+              </div>
             </div>
           )}
         </div>
@@ -259,7 +274,13 @@ export default function ROICard() {
           opacity: 0;
           transition: opacity 0.2s;
         }
-        .market-price-metric:hover .edit-price-btn {
+        .market-price-metric .price-display-clickable:hover {
+          background: #e3f2fd;
+        }
+        .market-price-metric .price-display-clickable:hover .edit-price-btn {
+          opacity: 1;
+        }
+        .market-price-metric .edit-price-btn-visible {
           opacity: 1;
         }
       `}</style>
@@ -362,6 +383,10 @@ const styles = {
     background: '#f8f9fa',
     borderRadius: '8px',
     border: '1px solid #dadce0',
+    minHeight: '80px',  // 确保所有框高度一致
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
   },
   metricLabel: {
     fontSize: '11px',
@@ -422,7 +447,28 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    cursor: 'pointer',
+    padding: '6px 8px',
+    margin: '0 -8px',  // 只左右扩展，不向上下扩展
+    borderRadius: '6px',
+    transition: 'background 0.2s',
+  },
+  priceEmptyRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: '4px',
+    cursor: 'pointer',
+    padding: '6px 8px',
+    margin: '0 -8px',  // 只左右扩展，不向上下扩展
+    borderRadius: '6px',
+    transition: 'background 0.2s',
+  },
+  metricValueEmpty: {
+    fontSize: '18px',
+    fontWeight: '500',
+    color: '#9ca3af',
   },
   priceEditRow: {
     display: 'flex',
@@ -431,14 +477,23 @@ const styles = {
     gap: '4px',
   },
   editPriceBtn: {
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
     padding: '4px',
     color: '#5f6368',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'absolute',
+    right: '4px',
+    pointerEvents: 'none',
+  },
+  editPriceBtnVisible: {
+    padding: '4px',
+    color: '#ef4444',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 1,
+    pointerEvents: 'none',
   },
   priceInput: {
     width: '60px',
