@@ -2,7 +2,7 @@
 
 ## 🚀 最简单的方式(推荐)
 
-在项目根目录 `/Users/chenmq/Documents/duckiki` 执行:
+在项目根目录 `/Users/chenmq/Documents/gym-roi-tracker` 执行:
 
 ```bash
 ./gym
