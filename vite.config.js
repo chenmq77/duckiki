@@ -5,7 +5,7 @@ import { resolve } from 'path'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/gym/',
+  base: '/gym-roi-tracker/',
   build: {
     rollupOptions: {
       input: {
