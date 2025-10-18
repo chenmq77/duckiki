@@ -54,9 +54,11 @@ db.init_app(app)
 # ========================================
 from routes.expenses import expenses_bp
 from routes.activities import activities_bp
+from routes.roi import roi_bp
 
 app.register_blueprint(expenses_bp)
 app.register_blueprint(activities_bp)
+app.register_blueprint(roi_bp)
 
 # ========================================
 # 健康检查接口

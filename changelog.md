@@ -2,6 +2,618 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-10-18] - MVP Day 2 完成：前端 Dashboard 上线
+
+### 为什么要做
+
+**目标**：完成 MVP 第 2 天的开发任务 —— 搭建前端 Dashboard 并连接后端 API，实现完整的数据录入和查看功能。
+
+**核心需求**：
+- ✅ 配置前端连接后端 API（CORS、环境变量）
+- ✅ 创建统一的 API 客户端工具
+- ✅ 开发 ROI 进度卡片组件（可视化回本进度）
+- ✅ 创建支出和活动录入表单
+- ✅ 实现前后端数据实时同步
+
+### 修改内容
+
+#### 1. API 客户端工具 (`src/apps/gym-roi/api/client.js`)
+
+**核心功能**：
+- 统一的 fetch 封装（错误处理、JSON 序列化）
+- 支持所有后端 API 接口调用
+- 自动从环境变量读取 API 地址
+
+**接口列表**：
+```javascript
+api.health.check()              // 健康检查
+api.expenses.getAll()           // 获取所有支出
+api.expenses.create(data)       // 创建支出
+api.expenses.delete(id)         // 删除支出
+api.activities.getAll()         // 获取所有活动
+api.activities.create(data)     // 创建活动（自动计算权重）
+api.activities.delete(id)       // 删除活动
+api.roi.getSummary()            // 获取 ROI 统计
+```
+
+**使用示例**：
+```javascript
+// 创建活动
+const activity = await api.activities.create({
+  type: 'swimming',
+  distance: 1500,
+  date: '2025-10-18',
+  note: '状态不错'
+});
+// 返回: { id: 1, calculated_weight: 1.41, ... }
+```
+
+#### 2. 环境变量配置
+
+**新建文件**：
+- `.env` - 开发环境配置
+- `.env.example` - 配置模板
+
+**配置内容**：
+```bash
+# 后端 API 地址
+VITE_API_URL=http://localhost:5002
+```
+
+#### 3. ROI 进度卡片组件 (`src/apps/gym-roi/components/ROICard.jsx`)
+
+**核心功能**：
+- 实时显示 ROI 统计数据
+- 回本进度条（带动画）
+- 关键指标展示（总支出、活动次数、平均成本等）
+- 自动计算回本进度和剩余次数
+
+**UI 设计**：
+- ✅ 大号 ROI 百分比显示（绿色=已回本，红色=未回本）
+- ✅ 动态进度条（0-100%）
+- ✅ 4 个关键指标卡片
+- ✅ 刷新按钮
+
+**回本进度计算**：
+```javascript
+// 回本目标：total_expense / weighted_total <= market_price
+// 即：weighted_total >= total_expense / market_price
+const targetActivities = total_expense / market_reference_price;
+const progress = (weighted_total / targetActivities) * 100;
+```
+
+#### 4. 支出录入表单 (`src/apps/gym-roi/components/ExpenseForm.jsx`)
+
+**表单字段**：
+- 支出类型（会员费 | 固定资产 | 其他）
+- 分类（可选）
+- 金额 + 币种（NZD | RMB | USD）
+- 日期
+- 备注（可选）
+
+**UX 优化**：
+- ✅ 实时表单验证
+- ✅ 提交成功后自动清空表单
+- ✅ 成功后通知父组件刷新 ROI 数据
+- ✅ 错误提示
+
+#### 5. 活动录入表单 (`src/apps/gym-roi/components/ActivityForm.jsx`)
+
+**表单字段**：
+- 活动类型（游泳，MVP 阶段仅此类型）
+- 游泳距离（米）
+- 日期
+- 备注（可选）
+
+**智能提示功能**：
+- 输入距离时实时显示权重提示：
+  - `< 1000m`: "少于基准，权重会降低" （橙色）
+  - `= 1000m`: "基准距离，权重 1.0" （绿色）
+  - `1000-1500m`: "不错！权重会增加" （绿色）
+  - `> 1500m`: "很棒！但边际收益递减" （蓝色）
+
+**权重说明面板**：
+```
+⚖️ 权重计算规则
+- 基准距离：1000m = 权重 1.0
+- 少于基准：权重降低（高斯惩罚）
+- 多于基准：权重增加（对数奖励）
+- 示例：1100m ≈ 1.10, 1500m ≈ 1.41, 2000m ≈ 1.69
+```
+
+**UX 优化**：
+- ✅ 提交成功后显示计算出的权重（3秒后消失）
+- ✅ 自动清空表单
+- ✅ 通知父组件刷新 ROI 数据
+
+#### 6. Dashboard 主页面 (`src/apps/gym-roi/pages/Dashboard.jsx`)
+
+**布局设计**：
+```
+┌─────────────────────────────────┐
+│  🏋️ 健身房回本计划                │
+│  记录支出和活动，追踪回本进度      │
+├─────────────────────────────────┤
+│        💰 回本进度卡片           │
+│  (ROI 百分比、进度条、关键指标)   │
+├─────────────────────────────────┤
+│   📝 支出表单    🏊 活动表单     │
+│  (左右并排显示)                  │
+├─────────────────────────────────┤
+│          页脚提示信息            │
+└─────────────────────────────────┘
+```
+
+**数据同步机制**：
+- 表单提交成功 → 触发 `onSuccess` 回调
+- Dashboard 监听回调 → 更新 `refreshKey`
+- ROI 卡片通过 `key` 变化重新加载数据
+
+**视觉设计**：
+- 紫色渐变背景
+- 白色卡片 + 圆角 + 阴影
+- 响应式布局（表单自动适配屏幕宽度）
+
+#### 7. 更新主应用入口 (`src/App.jsx`)
+
+**修改内容**：
+```javascript
+import Dashboard from './apps/gym-roi/pages/Dashboard';
+
+function App() {
+  return (
+    <div className="App">
+      <Dashboard />
+    </div>
+  );
+}
+```
+
+### 如何工作
+
+#### 1. 前后端数据流
+
+**录入支出流程**：
+```
+用户填写支出表单
+  ↓
+点击"添加支出"
+  ↓
+ExpenseForm → api.expenses.create(data)
+  ↓
+POST /api/expenses (后端)
+  ↓
+存入数据库
+  ↓
+返回 201 Created
+  ↓
+表单清空 + 触发 onSuccess()
+  ↓
+Dashboard 更新 refreshKey
+  ↓
+ROI Card 重新加载数据
+  ↓
+显示更新后的统计
+```
+
+**录入活动流程**：
+```
+用户输入游泳距离
+  ↓
+实时显示权重提示（如："不错！权重会增加"）
+  ↓
+点击"添加活动"
+  ↓
+ActivityForm → api.activities.create(data)
+  ↓
+POST /api/activities (后端)
+  ↓
+调用 calculate_swimming_weight(distance) 计算权重
+  ↓
+存入数据库（包含 calculated_weight）
+  ↓
+返回 201 Created + calculated_weight
+  ↓
+显示成功提示："✅ 添加成功！权重: 1.41"
+  ↓
+触发 ROI 刷新
+```
+
+#### 2. 开发服务器启动
+
+**后端**（Flask）：
+```bash
+cd backend
+source venv/bin/activate
+python app.py
+# Running on http://localhost:5002
+```
+
+**前端**（Vite）：
+```bash
+npm run dev
+# Running on http://localhost:5173/duckiki/
+```
+
+#### 3. 测试前后端集成
+
+**访问地址**：
+- 前端：http://localhost:5173/duckiki/
+- 后端 API：http://localhost:5002
+
+**测试步骤**：
+1. 打开浏览器访问前端地址
+2. 查看 ROI 卡片（应显示当前数据）
+3. 添加一笔支出（如：$916 年卡）
+4. 添加一次活动（如：1500m 游泳）
+5. 观察：
+   - 表单提交后自动清空
+   - 显示"✅ 添加成功！权重: 1.41"
+   - ROI 卡片自动刷新
+   - 活动次数、平均成本、ROI% 都更新了
+
+### 预期效果
+
+**Day 2 完成情况** (7/7 完成)：
+- ✅ API 客户端工具创建完成
+- ✅ 环境变量配置完成
+- ✅ ROI 进度卡片开发完成
+- ✅ 支出录入表单开发完成
+- ✅ 活动录入表单开发完成
+- ✅ Dashboard 主页面开发完成
+- ✅ 前后端集成测试通过
+
+**用户体验**：
+- ✅ 界面美观（紫色渐变背景 + 白色卡片）
+- ✅ 操作流畅（表单验证、自动刷新）
+- ✅ 反馈及时（成功提示、权重显示）
+- ✅ 信息清晰（ROI 进度条、关键指标）
+
+**技术亮点**：
+- ✅ 前后端完全分离
+- ✅ 统一的 API 调用接口
+- ✅ 组件化设计（易于维护和扩展）
+- ✅ 实时数据同步
+- ✅ 智能提示（权重预测）
+
+**下一步工作**（Day 3）：
+- ⏳ 数据列表展示（支出和活动历史记录）
+- ⏳ 删除功能（支出和活动）
+- ⏳ 数据可视化（图表）
+- ⏳ 响应式布局优化
+
+### 技术细节
+
+#### 文件清单
+
+**新建文件**（7个）：
+1. `src/apps/gym-roi/api/client.js` - API 客户端工具（约 180 行）
+2. `src/apps/gym-roi/components/ROICard.jsx` - ROI 进度卡片（约 270 行）
+3. `src/apps/gym-roi/components/ExpenseForm.jsx` - 支出表单（约 240 行）
+4. `src/apps/gym-roi/components/ActivityForm.jsx` - 活动表单（约 280 行）
+5. `src/apps/gym-roi/pages/Dashboard.jsx` - 主页面（约 90 行）
+6. `.env` - 环境变量
+7. `.env.example` - 环境变量模板
+
+**修改文件**：
+1. `src/App.jsx` - 引入 Dashboard 页面
+2. `changelog.md` - 新增本条记录
+
+#### API 客户端架构
+
+**请求封装**：
+```javascript
+async function request(endpoint, options = {}) {
+  const url = `${API_BASE_URL}${endpoint}`;
+
+  const config = {
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+    ...options,
+  };
+
+  const response = await fetch(url, config);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      error: `HTTP ${response.status}: ${response.statusText}`
+    }));
+    throw new Error(error.error || '请求失败');
+  }
+
+  if (response.status === 204) return null; // DELETE 成功
+
+  return await response.json();
+}
+```
+
+**错误处理策略**：
+- HTTP 错误 → 解析 JSON 错误信息 → 抛出异常
+- 网络错误 → console.error + 抛出异常
+- 组件层面 → try-catch 捕获 → 显示错误提示
+
+#### React 组件设计模式
+
+**受控组件模式**（表单）：
+```javascript
+const [formData, setFormData] = useState({ ... });
+
+const handleChange = (e) => {
+  const { name, value } = e.target;
+  setFormData(prev => ({ ...prev, [name]: value }));
+};
+
+<input name="distance" value={formData.distance} onChange={handleChange} />
+```
+
+**数据刷新模式**（父子组件通信）：
+```javascript
+// 父组件 (Dashboard)
+const [refreshKey, setRefreshKey] = useState(0);
+const handleDataChange = () => setRefreshKey(prev => prev + 1);
+
+<ROICard key={refreshKey} />
+<ExpenseForm onSuccess={handleDataChange} />
+
+// 子组件 (ExpenseForm)
+await api.expenses.create(data);
+if (onSuccess) onSuccess(); // 通知父组件
+```
+
+#### 样式设计
+
+**内联样式优势**（MVP 阶段）：
+- 无需额外 CSS 文件
+- 组件自包含（易于复制、移动）
+- 动态样式计算（如：进度条宽度、颜色）
+
+**颜色系统**：
+```javascript
+// 主题色
+background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // 紫色渐变
+primary: '#3b82f6',   // 蓝色（按钮）
+success: '#10b981',   // 绿色（已回本、成功）
+warning: '#f59e0b',   // 橙色（警告）
+error: '#ef4444',     // 红色（未回本、错误）
+```
+
+### 相关文档
+
+- [需求文档 3.3 - 数据录入](docs/gym-roi-requirements.md#33-数据录入) 或 [[gym-roi-requirements#3.3 数据录入|数据录入]]
+- [架构设计文档 - 前端架构](docs/gym-roi-architecture.md#前端架构) 或 [[gym-roi-architecture#前端架构|前端]]
+- [开发指南 - React 开发规范](docs/development-guide.md#react-开发规范) 或 [[development-guide#React 开发规范|React规范]]
+- [API 客户端文档](src/apps/gym-roi/api/client.js) - JSDoc 注释详细说明
+
+---
+
+## [2025-10-18] - MVP Day 1 完成：ROI 计算 API 上线
+
+### 为什么要做
+
+**目标**：完成 MVP 第 1 天的最后一个任务 —— ROI 统计接口，为前端 Dashboard 提供核心数据。
+
+**核心需求**：
+- ✅ 提供总支出、总活动次数、加权总次数等关键统计
+- ✅ 计算平均单次成本（总支出 ÷ 加权次数）
+- ✅ 对比市场参考价，计算节省金额和 ROI 百分比
+- ✅ 为前端"回本进度卡片"提供数据源
+
+### 修改内容
+
+#### 新建 ROI 计算 API (`backend/routes/roi.py`)
+
+**接口**：
+- `GET /api/roi/summary`：获取 ROI 摘要统计
+
+**返回数据格式**：
+```json
+{
+  "total_expense": 916.0,          // 总支出（NZD）
+  "total_activities": 3,           // 活动总数（未加权）
+  "weighted_total": 4.2,           // 加权总次数
+  "average_cost": 218.1,           // 平均单次成本
+  "market_reference_price": 50.0,  // 市场参考价（游泳单次价格）
+  "money_saved": -706.0,           // 节省金额（负数 = 还没回本）
+  "roi_percentage": -77.07         // ROI 百分比
+}
+```
+
+**核心计算逻辑**：
+```python
+# 1. 总支出
+total_expense = sum(expense.amount for expense in expenses)
+
+# 2. 加权总次数（使用对数奖励公式）
+weighted_total = sum(activity.calculated_weight for activity in activities)
+
+# 3. 平均单次成本
+average_cost = total_expense / weighted_total
+
+# 4. 节省金额
+money_saved = (market_price - average_cost) × weighted_total
+
+# 5. ROI 百分比
+roi_percentage = (money_saved / total_expense) × 100
+```
+
+**关键特性**：
+- ✅ 零除保护（weighted_total=0 时返回 0）
+- ✅ 数值保留 2 位小数
+- ✅ 异常处理（返回 500 错误）
+
+#### 注册 ROI 蓝图到 Flask (`backend/app.py`)
+
+**修改内容**：
+```python
+# 导入 ROI 蓝图
+from routes.roi import roi_bp
+
+# 注册到应用
+app.register_blueprint(roi_bp)
+```
+
+**API 路由列表更新**：
+```python
+'endpoints': {
+    'health': '/api/health',
+    'expenses': '/api/expenses',
+    'activities': '/api/activities',
+    'roi': '/api/roi/summary'  # 新增
+}
+```
+
+### 如何工作
+
+#### 1. 数据流向
+
+```
+前端 Dashboard
+  ↓
+GET /api/roi/summary
+  ↓
+Flask roi_bp.get_roi_summary()
+  ↓
+查询数据库：
+  - Expense.query.all() → 总支出
+  - Activity.query.all() → 加权总次数
+  ↓
+计算统计指标：
+  - 平均成本 = 916 ÷ 4.2 = 218.1
+  - 节省金额 = (50 - 218.1) × 4.2 = -706
+  - ROI% = (-706 / 916) × 100 = -77.07%
+  ↓
+返回 JSON
+  ↓
+前端渲染进度卡片：
+  - "还需要 X 次才能回本"
+  - "当前 ROI: -77%"
+```
+
+#### 2. 测试验证
+
+**测试数据**：
+- 支出：$916.00（年卡会员费）
+- 活动：
+  - 1500m 游泳 → 权重 1.41
+  - 2000m 游泳 → 权重 1.69
+  - 1100m 游泳 → 权重 1.10
+  - 加权总次数 = 4.20
+
+**计算结果验证**：
+```bash
+curl http://localhost:5002/api/roi/summary
+{
+  "total_expense": 916.0,        ✅
+  "total_activities": 3,         ✅
+  "weighted_total": 4.2,         ✅ (1.41 + 1.69 + 1.10)
+  "average_cost": 218.1,         ✅ (916 ÷ 4.2)
+  "market_reference_price": 50.0, ✅
+  "money_saved": -706.0,         ✅ ((50 - 218.1) × 4.2)
+  "roi_percentage": -77.07       ✅ ((-706 / 916) × 100)
+}
+```
+
+**解读**：
+- 当前每次活动成本 $218.10（市场价 $50）
+- 还没回本，ROI 为 -77.07%
+- 需要继续游泳来降低平均成本！
+
+#### 3. MVP Day 1 完成情况
+
+**Day 1 任务清单** (7/7 完成)：
+- ✅ 虚拟环境搭建
+- ✅ Flask 应用骨架 (`app.py`)
+- ✅ 数据库模型 (`models.py`)
+- ✅ 游泳权重算法 (`utils/gaussian.py`)
+- ✅ 支出管理 API (`routes/expenses.py`)
+- ✅ 活动管理 API (`routes/activities.py`)
+- ✅ **ROI 计算 API** (`routes/roi.py`) ← 本次完成
+
+### 预期效果
+
+**后端 API 完整性**：
+- ✅ 所有核心 CRUD 接口已完成
+- ✅ 核心业务逻辑（权重计算、ROI 统计）已实现
+- ✅ 数据持久化（SQLite）正常工作
+- ✅ 为前端开发提供完整数据支持
+
+**数据准确性**：
+- ✅ ROI 计算公式验证通过
+- ✅ 加权次数使用对数奖励公式（最新版本）
+- ✅ 数值格式统一（保留 2 位小数）
+
+**下一步工作**（Day 2）：
+- ⏳ 前端项目搭建（React + Vite）
+- ⏳ Dashboard 页面开发
+- ⏳ 表单组件（录入支出和活动）
+- ⏳ ROI 进度卡片（调用本接口）
+
+### 技术细节
+
+#### 文件清单
+
+**新建文件**：
+1. `backend/routes/roi.py` - ROI 统计 API（约 90 行）
+
+**修改文件**：
+1. `backend/app.py` - 注册 roi_bp 蓝图（2 行）
+2. `changelog.md` - 新增本条记录
+
+**生成数据库记录**（测试）：
+- `expenses` 表：1 条记录（$916 会员费）
+- `activities` 表：3 条记录（1500m, 2000m, 1100m）
+
+#### ROI 计算公式推导
+
+**定义**：
+- `C` = 总支出（Total Cost）
+- `W` = 加权总次数（Weighted Total Activities）
+- `P_avg` = 平均单次成本（Average Cost）
+- `P_market` = 市场参考价（Market Reference Price）
+- `S` = 节省金额（Money Saved）
+- `ROI%` = 投资回报率百分比
+
+**公式**：
+```
+P_avg = C / W
+S = (P_market - P_avg) × W
+ROI% = (S / C) × 100
+```
+
+**示例计算**（本次测试数据）：
+```
+C = 916
+W = 4.2
+P_market = 50
+
+P_avg = 916 / 4.2 = 218.1
+S = (50 - 218.1) × 4.2 = -706.0
+ROI% = (-706 / 916) × 100 = -77.07%
+```
+
+**经济学意义**：
+- ROI < 0：还没回本（当前情况）
+- ROI = 0：刚好回本（P_avg = P_market）
+- ROI > 0：已回本并节省（P_avg < P_market）
+
+**回本条件**（以本例为准）：
+```
+目标：P_avg ≤ 50
+即：916 / W ≤ 50
+解得：W ≥ 18.32
+
+当前进度：4.2 / 18.32 = 22.9%
+还需：18.32 - 4.2 = 14.12 次（加权）
+```
+
+### 相关文档
+
+- [需求文档 3.4 - ROI 计算逻辑](docs/gym-roi-requirements.md#34-roi-计算逻辑) 或 [[gym-roi-requirements#3.4 ROI 计算|ROI 计算]]
+- [架构设计文档 - API 接口](docs/gym-roi-architecture.md#api-接口设计) 或 [[gym-roi-architecture#API 接口设计|API 设计]]
+- [后端开发说明](backend/README.md) 或 [[backend/README|后端文档]]
+- [MVP 5 天开发计划](docs/development-guide.md#mvp-5天开发计划) 或 [[development-guide#MVP 5天开发计划|开发计划]]
+
+---
+
 ## [2025-10-18] - 奖励机制优化：从高斯 +1 改为对数曲线
 
 ### 为什么要做
