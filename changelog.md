@@ -2,6 +2,81 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-10-19] - UI Bug 修复：支出编辑表单溢出导致按钮不可点击
+
+### 为什么要做
+
+**严重问题**：用户点击支出记录的"编辑"按钮后，编辑表单的输入框水平溢出容器，导致"保存"和"取消"按钮被隐藏在视图外，用户无法点击保存或取消操作。
+
+**用户反馈**："支出记录点击编辑后 框超出了。。 所以也不能点击保存或者取消"
+
+**根本原因**：编辑模式下，4个 `flex: 1` 的输入框（金额、日期、分类、备注）加上操作按钮在同一行布局，总宽度超过容器宽度，造成水平溢出。
+
+### 修改内容
+
+**文件**：`src/apps/gym-roi/components/ExpenseList.jsx`
+
+**修改前**：单行布局（354-391行）
+```jsx
+// 4个输入框 + 操作按钮全部在一行
+<div style={styles.editRow}>
+  <input style={styles.editInput} /> {/* 金额 */}
+  <input style={styles.editInput} /> {/* 日期 */}
+  <input style={styles.editInput} /> {/* 分类 */}
+  <input style={styles.editInput} /> {/* 备注 */}
+  <div style={styles.editActions}>
+    <button>保存</button>
+    <button>取消</button>
+  </div>
+</div>
+
+// 样式：每个输入框都是 flex: 1，导致总宽度过大
+editInput: { flex: 1 }
+```
+
+**修改后**：双行布局
+```jsx
+// 第1行：金额 + 日期
+// 第2行：分类 + 备注 + 操作按钮
+<div style={styles.editContainer}>
+  <div style={styles.editRow}>
+    <input style={styles.editInputHalf} /> {/* 金额 */}
+    <input style={styles.editInputHalf} /> {/* 日期 */}
+  </div>
+  <div style={styles.editRow}>
+    <input style={styles.editInputHalf} /> {/* 分类 */}
+    <input style={styles.editInputHalf} /> {/* 备注 */}
+    <div style={styles.editActions}>
+      <button>保存</button>
+      <button>取消</button>
+    </div>
+  </div>
+</div>
+
+// 新增样式
+editContainer: {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '8px',
+},
+editInputHalf: {
+  flex: 1,
+  minWidth: 0,  // 允许收缩
+},
+editActions: {
+  flexShrink: 0,  // 按钮不收缩
+}
+```
+
+### 效果
+
+- ✅ 编辑表单不再溢出容器
+- ✅ "保存"和"取消"按钮始终可见可点击
+- ✅ 输入框合理分布，每行2个字段
+- ✅ 保持了 Google News 风格的简洁设计
+
+---
+
 ## [2025-10-19] - Bug 修复：保存53期合同却显示54期
 
 ### 为什么要做

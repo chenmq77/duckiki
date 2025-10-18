@@ -350,43 +350,47 @@ export default function ExpenseList({ refreshTrigger, onDelete }) {
           return (
             <div key={expense.id} style={styles.item} className="expense-item">
               {isEditing ? (
-                // 编辑模式
-                <div style={styles.editRow}>
-                  <input
-                    type="number"
-                    value={editData.amount}
-                    onChange={(e) => setEditData({ ...editData, amount: parseFloat(e.target.value) })}
-                    style={styles.editInput}
-                    placeholder="金额"
-                    step="0.01"
-                  />
-                  <input
-                    type="date"
-                    value={editData.date}
-                    onChange={(e) => setEditData({ ...editData, date: e.target.value })}
-                    style={styles.editInput}
-                  />
-                  <input
-                    type="text"
-                    value={editData.category}
-                    onChange={(e) => setEditData({ ...editData, category: e.target.value })}
-                    style={styles.editInput}
-                    placeholder="分类"
-                  />
-                  <input
-                    type="text"
-                    value={editData.note}
-                    onChange={(e) => setEditData({ ...editData, note: e.target.value })}
-                    style={styles.editInput}
-                    placeholder="备注"
-                  />
-                  <div style={styles.editActions}>
-                    <button onClick={() => saveEdit(expense.id)} style={styles.saveButton}>
-                      保存
-                    </button>
-                    <button onClick={cancelEdit} style={styles.cancelButton}>
-                      取消
-                    </button>
+                // 编辑模式 - 双行布局避免溢出
+                <div style={styles.editContainer}>
+                  <div style={styles.editRow}>
+                    <input
+                      type="number"
+                      value={editData.amount}
+                      onChange={(e) => setEditData({ ...editData, amount: parseFloat(e.target.value) })}
+                      style={styles.editInputHalf}
+                      placeholder="金额"
+                      step="0.01"
+                    />
+                    <input
+                      type="date"
+                      value={editData.date}
+                      onChange={(e) => setEditData({ ...editData, date: e.target.value })}
+                      style={styles.editInputHalf}
+                    />
+                  </div>
+                  <div style={styles.editRow}>
+                    <input
+                      type="text"
+                      value={editData.category}
+                      onChange={(e) => setEditData({ ...editData, category: e.target.value })}
+                      style={styles.editInputHalf}
+                      placeholder="分类"
+                    />
+                    <input
+                      type="text"
+                      value={editData.note}
+                      onChange={(e) => setEditData({ ...editData, note: e.target.value })}
+                      style={styles.editInputHalf}
+                      placeholder="备注"
+                    />
+                    <div style={styles.editActions}>
+                      <button onClick={() => saveEdit(expense.id)} style={styles.saveButton}>
+                        保存
+                      </button>
+                      <button onClick={cancelEdit} style={styles.cancelButton}>
+                        取消
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -862,24 +866,30 @@ const styles = {
     borderRadius: '4px',
     transition: 'background 0.2s, color 0.2s',
   },
-  // 编辑模式
+  // 编辑模式 - 双行布局
+  editContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
   editRow: {
     display: 'flex',
     gap: '8px',
     alignItems: 'center',
   },
-  editInput: {
+  editInputHalf: {
     padding: '6px 8px',
     border: '1px solid #d1d5db',
     borderRadius: '4px',
     fontSize: '13px',
     outline: 'none',
     flex: 1,
+    minWidth: 0,  // 允许收缩
   },
   editActions: {
     display: 'flex',
     gap: '6px',
-    marginLeft: 'auto',
+    flexShrink: 0,  // 按钮不收缩
   },
   saveButton: {
     padding: '6px 12px',
