@@ -270,8 +270,10 @@ class MembershipContract(db.Model):
     - id: 主键（自增）
     - expense_id: 关联的父支出 ID
     - total_amount: 合同总金额
-    - weekly_amount: 每周扣费金额（默认值）
-    - day_of_week: 扣费日（0=周一, 6=周日）
+    - period_amount: 每期扣费金额
+    - period_type: 分期类型（'weekly'=每周 或 'monthly'=每月）
+    - day_of_week: 每周扣费日（0=周一, 6=周日，仅 weekly 模式）
+    - day_of_month: 每月扣费日（1-28号，仅 monthly 模式）
     - start_date: 合同开始日期
     - end_date: 合同结束日期
     - created_at: 创建时间（自动生成）
@@ -288,11 +290,17 @@ class MembershipContract(db.Model):
     # 合同总金额
     total_amount = db.Column(db.Float, nullable=False)
 
-    # 每周扣费金额（默认值）
-    weekly_amount = db.Column(db.Float, nullable=False)
+    # 每期扣费金额（取代 weekly_amount，兼容周/月）
+    period_amount = db.Column(db.Float, nullable=False)
 
-    # 扣费日（0=周一, 6=周日）
-    day_of_week = db.Column(db.Integer, nullable=False)
+    # 分期类型（'weekly' 或 'monthly'）
+    period_type = db.Column(db.String(20), default='weekly', nullable=False)
+
+    # 每周扣费日（0=周一, 6=周日）- 仅 period_type='weekly' 时有效
+    day_of_week = db.Column(db.Integer, nullable=True)
+
+    # 每月扣费日（1-28号）- 仅 period_type='monthly' 时有效
+    day_of_month = db.Column(db.Integer, nullable=True)
 
     # 合同起止日期
     start_date = db.Column(db.Date, nullable=False)
@@ -325,8 +333,10 @@ class MembershipContract(db.Model):
             'id': self.id,
             'expense_id': self.expense_id,
             'total_amount': self.total_amount,
-            'weekly_amount': self.weekly_amount,
+            'period_amount': self.period_amount,
+            'period_type': self.period_type,
             'day_of_week': self.day_of_week,
+            'day_of_month': self.day_of_month,
             'start_date': self.start_date.isoformat() if self.start_date else None,
             'end_date': self.end_date.isoformat() if self.end_date else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
@@ -338,7 +348,7 @@ class MembershipContract(db.Model):
 
         示例：<MembershipContract #1: $916 total, $17/week>
         """
-        return f'<MembershipContract #{self.id}: ${self.total_amount} total, ${self.weekly_amount}/week>'
+        return f'<MembershipContract #{self.id}: ${self.total_amount} total, ${self.period_amount}/{self.period_type}>'
 
 
 # ========================================

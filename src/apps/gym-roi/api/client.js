@@ -202,9 +202,11 @@ const api = {
      * @param {string} data.type - 支出类型
      * @param {string} [data.category] - 分类
      * @param {number} data.total_amount - 合同总金额
-     * @param {number} data.weekly_amount - 每周扣费金额
+     * @param {number} data.period_amount - 每期扣费金额
+     * @param {string} data.period_type - 分期类型（'weekly'=每周 或 'monthly'=每月）
      * @param {string} [data.currency] - 货币（默认 NZD）
-     * @param {number} data.day_of_week - 扣费日（0=周一, 6=周日）
+     * @param {number} [data.day_of_week] - 每周扣费日（0=周一, 6=周日，仅 period_type='weekly'）
+     * @param {number} [data.day_of_month] - 每月扣费日（1-28，仅 period_type='monthly'）
      * @param {string} data.start_date - 开始日期（YYYY-MM-DD）
      * @param {string} data.end_date - 结束日期（YYYY-MM-DD）
      * @param {string} [data.note] - 备注

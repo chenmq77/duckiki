@@ -5,7 +5,7 @@
  * 支持全额支付和分期付款两种模式
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api/client';
 
 export default function ExpenseForm({ onSuccess }) {
@@ -24,9 +24,12 @@ export default function ExpenseForm({ onSuccess }) {
 
   // 分期付款额外字段
   const [installmentData, setInstallmentData] = useState({
-    weeklyAmount: '',
-    dayOfWeek: 0,  // 0=周一
-    endDate: '',
+    periodType: 'weekly',  // 'weekly' 或 'monthly'
+    periodCount: '',       // 分期数
+    perPeriodAmount: '',   // 每期金额
+    dayOfWeek: 0,          // 每周: 0=周一, 6=周日
+    dayOfMonth: 1,         // 每月: 1-28号
+    endDate: '',           // 自动计算的结束日期
   });
 
   const [loading, setLoading] = useState(false);
@@ -38,6 +41,39 @@ export default function ExpenseForm({ onSuccess }) {
       ...prev,
       [name]: value
     }));
+
+    // 智能默认值：当选择会员类型时，自动填充分期参数
+    if (name === 'category' && formData.type === 'membership' && paymentMode === 'installment') {
+      applyMembershipDefaults(value);
+    }
+  };
+
+  // 应用会员类型的智能默认值
+  const applyMembershipDefaults = (membershipType) => {
+    const defaults = {
+      '年卡': { periodType: 'weekly', periodCount: 52 },
+      '季卡': { periodType: 'weekly', periodCount: 13 },
+      '月卡': { periodType: 'weekly', periodCount: 4 },
+      '周卡': {}, // 留空
+      '次卡': {}, // 留空
+      '其他': {}, // 留空
+    };
+
+    const config = defaults[membershipType];
+    if (config && Object.keys(config).length > 0) {
+      setInstallmentData(prev => ({
+        ...prev,
+        periodType: config.periodType,
+        periodCount: config.periodCount,
+      }));
+    } else {
+      // 清空默认值
+      setInstallmentData(prev => ({
+        ...prev,
+        periodCount: '',
+        perPeriodAmount: '',
+      }));
+    }
   };
 
   const handleInstallmentChange = (e) => {
@@ -47,6 +83,68 @@ export default function ExpenseForm({ onSuccess }) {
       [name]: value
     }));
   };
+
+  // 双向计算：当总金额或期数改变时，更新每期金额
+  useEffect(() => {
+    if (formData.amount && installmentData.periodCount) {
+      const total = parseFloat(formData.amount);
+      const count = parseInt(installmentData.periodCount);
+      if (!isNaN(total) && !isNaN(count) && count > 0) {
+        const perPeriod = total / count;
+        setInstallmentData(prev => ({
+          ...prev,
+          perPeriodAmount: perPeriod.toFixed(2)
+        }));
+      }
+    }
+  }, [formData.amount, installmentData.periodCount]);
+
+  // 双向计算：当每期金额改变时，更新总金额
+  const handlePerPeriodAmountChange = (e) => {
+    const perPeriod = e.target.value;
+    setInstallmentData(prev => ({
+      ...prev,
+      perPeriodAmount: perPeriod
+    }));
+
+    // 如果有期数，自动计算总金额
+    if (installmentData.periodCount && perPeriod) {
+      const count = parseInt(installmentData.periodCount);
+      const amount = parseFloat(perPeriod);
+      if (!isNaN(count) && !isNaN(amount)) {
+        const total = amount * count;
+        setFormData(prev => ({
+          ...prev,
+          amount: total.toFixed(2)
+        }));
+      }
+    }
+  };
+
+  // 自动计算结束日期
+  useEffect(() => {
+    if (formData.date && installmentData.periodCount && installmentData.periodType) {
+      const startDate = new Date(formData.date);
+      const count = parseInt(installmentData.periodCount);
+
+      if (!isNaN(count) && count > 0) {
+        let endDate = new Date(startDate);
+
+        if (installmentData.periodType === 'weekly') {
+          // 每周：加 count × 7 天
+          endDate.setDate(endDate.getDate() + count * 7);
+        } else if (installmentData.periodType === 'monthly') {
+          // 每月：加 count 个月
+          endDate.setMonth(endDate.getMonth() + count);
+        }
+
+        setInstallmentData(prev => ({
+          ...prev,
+          endDate: endDate.toISOString().split('T')[0]
+        }));
+      }
+    }
+  }, [formData.date, installmentData.periodCount, installmentData.periodType]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -71,8 +169,13 @@ export default function ExpenseForm({ onSuccess }) {
 
       } else {
         // 分期付款：调用 contracts API
-        if (!installmentData.weeklyAmount || installmentData.weeklyAmount <= 0) {
-          setError('请输入有效的每周金额');
+        if (!installmentData.perPeriodAmount || installmentData.perPeriodAmount <= 0) {
+          setError('请输入有效的每期金额');
+          setLoading(false);
+          return;
+        }
+        if (!installmentData.periodCount || installmentData.periodCount <= 0) {
+          setError('请输入有效的期数');
           setLoading(false);
           return;
         }
@@ -86,9 +189,11 @@ export default function ExpenseForm({ onSuccess }) {
           type: formData.type,
           category: formData.category,
           total_amount: parseFloat(formData.amount),
-          weekly_amount: parseFloat(installmentData.weeklyAmount),
+          period_amount: parseFloat(installmentData.perPeriodAmount),
+          period_type: installmentData.periodType,  // 'weekly' 或 'monthly'
           currency: formData.currency,
-          day_of_week: parseInt(installmentData.dayOfWeek),
+          day_of_week: installmentData.periodType === 'weekly' ? parseInt(installmentData.dayOfWeek) : null,
+          day_of_month: installmentData.periodType === 'monthly' ? parseInt(installmentData.dayOfMonth) : null,
           start_date: formData.date,
           end_date: installmentData.endDate,
           note: formData.note,
@@ -107,8 +212,11 @@ export default function ExpenseForm({ onSuccess }) {
         note: '',
       });
       setInstallmentData({
-        weeklyAmount: '',
+        periodType: 'weekly',
+        periodCount: '',
+        perPeriodAmount: '',
         dayOfWeek: 0,
+        dayOfMonth: 1,
         endDate: '',
       });
 
@@ -144,22 +252,40 @@ export default function ExpenseForm({ onSuccess }) {
             required
           >
             <option value="membership">会员费</option>
-            <option value="equipment">固定资产</option>
+            <option value="equipment">运动装备</option>
+            <option value="additional">附加消费</option>
             <option value="other">其他</option>
           </select>
         </div>
 
-        {/* 分类 */}
+        {/* 分类 - 会员费显示下拉框，其他类型显示文本输入 */}
         <div style={styles.field}>
           <label style={styles.label}>分类</label>
-          <input
-            type="text"
-            name="category"
-            value={formData.category}
-            onChange={handleChange}
-            placeholder="如：年卡、游泳装备等"
-            style={styles.input}
-          />
+          {formData.type === 'membership' ? (
+            <select
+              name="category"
+              value={formData.category}
+              onChange={handleChange}
+              style={styles.select}
+            >
+              <option value="">请选择会员类型</option>
+              <option value="年卡">年卡</option>
+              <option value="季卡">季卡</option>
+              <option value="月卡">月卡</option>
+              <option value="周卡">周卡</option>
+              <option value="次卡">次卡</option>
+              <option value="其他">其他</option>
+            </select>
+          ) : (
+            <input
+              type="text"
+              name="category"
+              value={formData.category}
+              onChange={handleChange}
+              placeholder="如：游泳装备、能量棒等"
+              style={styles.input}
+            />
+          )}
         </div>
 
         {/* 金额 + 支付模式切换 */}
@@ -216,18 +342,80 @@ export default function ExpenseForm({ onSuccess }) {
           </div>
         </div>
 
-        {/* 分期付款额外字段（仅在分期模式下显示） */}
+        {/* 分期付款额外字段（三行紧凑布局） */}
         {paymentMode === 'installment' && (
           <div style={styles.installmentFields}>
-            <div style={styles.installmentRow}>
-              <div style={styles.installmentField}>
-                <label style={styles.smallLabel}>每周金额 *</label>
+            {/* 第1行：分期方式 + 期数 + 扣费日 */}
+            <div style={styles.compactRow}>
+              <div style={styles.compactField}>
+                <label style={styles.smallLabel}>分期方式 *</label>
+                <select
+                  name="periodType"
+                  value={installmentData.periodType}
+                  onChange={handleInstallmentChange}
+                  style={styles.smallSelect}
+                >
+                  <option value="weekly">每周</option>
+                  <option value="monthly">每月</option>
+                </select>
+              </div>
+
+              <div style={styles.compactField}>
+                <label style={styles.smallLabel}>分期数 *</label>
                 <input
                   type="number"
-                  name="weeklyAmount"
-                  value={installmentData.weeklyAmount}
+                  name="periodCount"
+                  value={installmentData.periodCount}
                   onChange={handleInstallmentChange}
-                  placeholder="17.00"
+                  placeholder="52"
+                  min="1"
+                  style={styles.smallInput}
+                  required={paymentMode === 'installment'}
+                />
+              </div>
+
+              <div style={styles.compactField}>
+                <label style={styles.smallLabel}>扣费日 *</label>
+                {installmentData.periodType === 'weekly' ? (
+                  <select
+                    name="dayOfWeek"
+                    value={installmentData.dayOfWeek}
+                    onChange={handleInstallmentChange}
+                    style={styles.smallSelect}
+                  >
+                    <option value="0">周一</option>
+                    <option value="1">周二</option>
+                    <option value="2">周三</option>
+                    <option value="3">周四</option>
+                    <option value="4">周五</option>
+                    <option value="5">周六</option>
+                    <option value="6">周日</option>
+                  </select>
+                ) : (
+                  <select
+                    name="dayOfMonth"
+                    value={installmentData.dayOfMonth}
+                    onChange={handleInstallmentChange}
+                    style={styles.smallSelect}
+                  >
+                    {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                      <option key={day} value={day}>{day}号</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {/* 第2行：总金额 ↔ 每期金额 */}
+            <div style={styles.bidirectionalRow}>
+              <div style={styles.bidirectionalField}>
+                <label style={styles.smallLabel}>总金额 *</label>
+                <input
+                  type="number"
+                  name="amount"
+                  value={formData.amount}
+                  onChange={handleChange}
+                  placeholder="916.00"
                   step="0.01"
                   min="0"
                   style={styles.smallInput}
@@ -235,54 +423,66 @@ export default function ExpenseForm({ onSuccess }) {
                 />
               </div>
 
-              <div style={styles.installmentField}>
-                <label style={styles.smallLabel}>扣费日 *</label>
-                <select
-                  name="dayOfWeek"
-                  value={installmentData.dayOfWeek}
-                  onChange={handleInstallmentChange}
-                  style={styles.smallSelect}
-                  required={paymentMode === 'installment'}
-                >
-                  <option value="0">周一</option>
-                  <option value="1">周二</option>
-                  <option value="2">周三</option>
-                  <option value="3">周四</option>
-                  <option value="4">周五</option>
-                  <option value="5">周六</option>
-                  <option value="6">周日</option>
-                </select>
-              </div>
+              <div style={styles.bidirectionalArrow}>↔</div>
 
-              <div style={styles.installmentField}>
-                <label style={styles.smallLabel}>截止日期 *</label>
+              <div style={styles.bidirectionalField}>
+                <label style={styles.smallLabel}>每期金额 *</label>
                 <input
-                  type="date"
-                  name="endDate"
-                  value={installmentData.endDate}
-                  onChange={handleInstallmentChange}
+                  type="number"
+                  value={installmentData.perPeriodAmount}
+                  onChange={handlePerPeriodAmountChange}
+                  placeholder="17.62"
+                  step="0.01"
+                  min="0"
                   style={styles.smallInput}
                   required={paymentMode === 'installment'}
+                />
+              </div>
+            </div>
+
+            {/* 第3行：开始日期 → 结束日期 */}
+            <div style={styles.dateRow}>
+              <div style={styles.dateField}>
+                <label style={styles.smallLabel}>开始日期 *</label>
+                <input
+                  type="date"
+                  name="date"
+                  value={formData.date}
+                  onChange={handleChange}
+                  style={styles.smallInput}
+                  required={paymentMode === 'installment'}
+                />
+              </div>
+
+              <div style={styles.dateArrow}>→</div>
+
+              <div style={styles.dateField}>
+                <label style={styles.smallLabel}>结束日期（自动）</label>
+                <input
+                  type="date"
+                  value={installmentData.endDate}
+                  style={{ ...styles.smallInput, background: '#f9fafb', color: '#6b7280' }}
+                  disabled
                 />
               </div>
             </div>
           </div>
         )}
 
-        {/* 日期 */}
-        <div style={styles.field}>
-          <label style={styles.label}>
-            {paymentMode === 'full' ? '日期 *' : '开始日期 *'}
-          </label>
-          <input
-            type="date"
-            name="date"
-            value={formData.date}
-            onChange={handleChange}
-            style={styles.input}
-            required
-          />
-        </div>
+        {/* 日期（仅全额模式显示，分期模式已在上面） */}
+        {paymentMode === 'full' && (
+          <div style={styles.field}>
+            <label style={styles.label}>日期 *</label>
+            <input
+              type="date"
+              name="date"
+              value={formData.date}
+              onChange={handleChange}
+              style={styles.input}
+              required
+            />
+          </div>
+        )}
 
         {/* 备注 */}
         <div style={styles.field}>
@@ -411,22 +611,62 @@ const styles = {
   radio: {
     cursor: 'pointer',
   },
-  // 分期付款额外字段
+  // 分期付款额外字段 - 三行紧凑布局
   installmentFields: {
     background: '#f9fafb',
     borderRadius: '6px',
-    padding: '12px',
+    padding: '14px',
     border: '1px solid #e5e7eb',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
   },
-  installmentRow: {
+  // 第1行：分期方式 + 期数 + 扣费日
+  compactRow: {
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
     gap: '10px',
   },
-  installmentField: {
+  compactField: {
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',
+  },
+  // 第2行：总金额 ↔ 每期金额
+  bidirectionalRow: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    gap: '10px',
+  },
+  bidirectionalField: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  bidirectionalArrow: {
+    fontSize: '20px',
+    color: '#3b82f6',
+    fontWeight: 'bold',
+    paddingBottom: '6px',
+  },
+  // 第3行：开始日期 → 结束日期
+  dateRow: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    gap: '10px',
+  },
+  dateField: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  dateArrow: {
+    fontSize: '20px',
+    color: '#10b981',
+    fontWeight: 'bold',
+    paddingBottom: '6px',
   },
   smallLabel: {
     fontSize: '12px',

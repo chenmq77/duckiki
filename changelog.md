@@ -1,6 +1,240 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## [2025-10-18] - 分期付款 UI 优化：智能表单与灵活期数支持
+
+### 为什么要做
+
+**目标**：优化分期付款用户体验，支持更灵活的分期方式（每周/每月），并提供智能默认值和双向计算功能，提升用户录入效率。
+
+**核心需求**：
+- ✅ 支持每周和每月两种分期类型
+- ✅ 支出类型重新分类（会员费/运动装备/附加消费/其他）
+- ✅ 会员费提供下拉分类（年卡/季卡/月卡/周卡/次卡/其他）
+- ✅ 智能默认值（年卡自动填充52期，季卡13期，月卡4期）
+- ✅ 双向计算（总金额 ↔ 每期金额自动联动）
+- ✅ 自动计算结束日期
+- ✅ 三行紧凑布局优化UI
+
+### 修改内容
+
+#### 1. 前端组件 (`src/apps/gym-roi/components/ExpenseForm.jsx`)
+
+**支出类型重构**：
+```javascript
+// 旧：membership / equipment / other
+// 新：membership / equipment / additional / other
+支出类型：
+- 会员费（membership）→ 下拉选择：年卡/季卡/月卡/周卡/次卡/其他
+- 运动装备（equipment）→ 文本输入
+- 附加消费（additional）→ 文本输入
+- 其他（other）→ 文本输入
+```
+
+**智能默认值系统**：
+```javascript
+const applyMembershipDefaults = (membershipType) => {
+  年卡 → periodType: 'weekly', periodCount: 52
+  季卡 → periodType: 'weekly', periodCount: 13
+  月卡 → periodType: 'weekly', periodCount: 4
+  周卡/次卡/其他 → 留空，用户自定义
+}
+```
+
+**双向计算逻辑**：
+```javascript
+// 方向1: 总金额/期数 改变 → 自动更新每期金额
+useEffect(() => {
+  perPeriodAmount = totalAmount / periodCount
+}, [formData.amount, installmentData.periodCount])
+
+// 方向2: 每期金额改变 → 自动更新总金额
+const handlePerPeriodAmountChange = (e) => {
+  totalAmount = perPeriodAmount × periodCount
+}
+```
+
+**三行紧凑布局**：
+```
+第1行: [分期方式▾] 分 [52] 期  扣费日: [周一▾]
+第2行: 总金额: [916.00] ↔ 每期金额: [17.62]
+第3行: 开始日期: [2025-01-01] → 结束日期: [2025-12-31]（自动）
+```
+
+**期数类型切换**：
+- `每周` 模式：显示"扣费日: [周一▾]"（0-6选择器）
+- `每月` 模式：显示"扣费日: [1号▾]"（1-28选择器）
+
+**自动计算结束日期**：
+```javascript
+useEffect(() => {
+  if (periodType === 'weekly') {
+    endDate = startDate + (count × 7 days)
+  } else if (periodType === 'monthly') {
+    endDate = startDate + count months
+  }
+}, [formData.date, installmentData.periodCount, installmentData.periodType])
+```
+
+#### 2. 后端数据模型 (`backend/models.py`)
+
+**MembershipContract 表更新**：
+```python
+# 新增字段：
+period_amount = db.Column(db.Float, nullable=False)           # 每期金额（取代 weekly_amount）
+period_type = db.Column(db.String(20), default='weekly')      # 分期类型（'weekly'/'monthly'）
+day_of_week = db.Column(db.Integer, nullable=True)            # 每周扣费日（仅weekly）
+day_of_month = db.Column(db.Integer, nullable=True)           # 每月扣费日（仅monthly）
+```
+
+#### 3. 后端 API (`backend/routes/contracts.py`)
+
+**新增月度扣费日期生成**：
+```python
+def generate_monthly_charge_dates(start_date, end_date, day_of_month):
+    """
+    生成每月扣费日期列表
+
+    逻辑：
+    1. 找到第一个扣费日（当月或下月的指定日期）
+    2. 每次递增1个月，直到超过结束日期
+    """
+    # 实现使用 dateutil.relativedelta(months=1)
+```
+
+**合同创建逻辑更新**：
+```python
+# 1. 验证period_type及对应扣费日参数
+if period_type == 'weekly':
+    validate(day_of_week required)
+elif period_type == 'monthly':
+    validate(day_of_month required)
+
+# 2. 创建合同时保存period_type
+contract = MembershipContract(
+    period_amount=data['period_amount'],  # 不再是weekly_amount
+    period_type=data['period_type'],
+    day_of_week=data.get('day_of_week'),
+    day_of_month=data.get('day_of_month')
+)
+
+# 3. 根据period_type选择日期生成函数
+if period_type == 'weekly':
+    dates = generate_weekly_charge_dates(...)
+else:
+    dates = generate_monthly_charge_dates(...)
+```
+
+#### 4. API 客户端 (`src/apps/gym-roi/api/client.js`)
+
+**合同创建接口参数更新**：
+```javascript
+contracts.create({
+  total_amount,           // 合同总金额
+  period_amount,          // 每期金额（新）
+  period_type,            // 分期类型（新）'weekly'/'monthly'
+  day_of_week,            // 周扣费日（可选）
+  day_of_month,           // 月扣费日（可选）
+  start_date,
+  end_date,
+  ...
+})
+```
+
+### 如何工作
+
+#### 用户操作流程：
+
+**场景1：创建年卡分期**
+1. 选择"支出类型" = 会员费
+2. 选择"分类" = 年卡
+3. ✨ 自动填充：每周分期，52期
+4. 输入总金额 = 916
+5. ✨ 自动计算：每期金额 = 17.62
+6. 选择开始日期 = 2025-01-01
+7. ✨ 自动计算：结束日期 = 2025-12-31
+8. 提交 → 后端生成52条周扣费记录
+
+**场景2：创建月付会员**
+1. 选择"会员费" → "其他"（自定义会员类型）
+2. 切换"分期方式" = 每月
+3. 手动输入"分期数" = 12
+4. 选择"扣费日" = 1号
+5. 输入"每期金额" = 100
+6. ✨ 自动计算：总金额 = 1200
+7. 选择开始日期 = 2025-01-15
+8. ✨ 自动计算：结束日期 = 2026-01-15（12个月后）
+9. 提交 → 后端生成12条月扣费记录（每月1号）
+
+#### 后端处理流程：
+
+**每周扣费示例**：
+```
+开始: 2025-01-01（周三）
+扣费日: 周一（day_of_week=0）
+结束: 2025-12-31
+
+生成：
+2025-01-06（第1个周一）
+2025-01-13
+2025-01-20
+...
+2025-12-29（最后1个周一）
+```
+
+**每月扣费示例**：
+```
+开始: 2025-01-15
+扣费日: 每月1号（day_of_month=1）
+期数: 12
+
+生成：
+2025-02-01（第1期，下个月1号）
+2025-03-01（第2期）
+...
+2026-01-01（第12期）
+```
+
+### 技术细节
+
+**前端状态管理**：
+```javascript
+const [installmentData, setInstallmentData] = useState({
+  periodType: 'weekly',     // 分期类型
+  periodCount: '',          // 分期数
+  perPeriodAmount: '',      // 每期金额
+  dayOfWeek: 0,             // 周扣费日
+  dayOfMonth: 1,            // 月扣费日
+  endDate: '',              // 自动计算的结束日期
+})
+```
+
+**数据库兼容性**：
+- 旧字段 `weekly_amount` 改为 `period_amount`（更通用）
+- 新增 `period_type` 字段区分周/月
+- `day_of_week` 和 `day_of_month` 根据 `period_type` 选择性使用
+
+**样式优化**：
+- 双向计算箭头符号：`↔` （蓝色，20px）
+- 自动计算箭头符号：`→` （绿色，20px）
+- 三行紧凑布局使用 flexbox + grid 混合
+- 结束日期输入框禁用并灰色显示（#f9fafb背景）
+
+### 文件变更清单
+
+**前端**：
+- `src/apps/gym-roi/components/ExpenseForm.jsx` - 主要UI改进
+- `src/apps/gym-roi/api/client.js` - API文档更新
+
+**后端**：
+- `backend/models.py` - MembershipContract表结构升级
+- `backend/routes/contracts.py` - 添加月度扣费逻辑
+
+**影响范围**：
+- 数据库需要重新初始化（字段变更）
+- 现有分期合同数据不兼容（需要迁移脚本）
+
 ## [2025-10-18] - MVP Day 3 完成：数据列表和删除功能
 
 ### 为什么要做

@@ -66,6 +66,42 @@ def generate_weekly_charge_dates(start_date, end_date, day_of_week):
     return dates
 
 
+def generate_monthly_charge_dates(start_date, end_date, day_of_month):
+    """
+    生成所有月扣费日期列表
+
+    参数:
+    - start_date: 开始日期（Date 对象）
+    - end_date: 结束日期（Date 对象）
+    - day_of_month: 每月扣费日（1-28）
+
+    返回:
+    - 日期列表 [date1, date2, ...]
+    """
+    dates = []
+    current = start_date
+
+    # 找到第一个扣费日期
+    # 如果开始日期的日期数 <= 扣费日，使用当月的扣费日
+    # 否则使用下个月的扣费日
+    if current.day <= day_of_month:
+        first_charge_date = current.replace(day=day_of_month)
+    else:
+        # 下个月
+        next_month = current + relativedelta(months=1)
+        first_charge_date = next_month.replace(day=day_of_month)
+
+    current = first_charge_date
+
+    # 生成所有扣费日期
+    while current <= end_date:
+        dates.append(current)
+        # 每次加一个月
+        current = current + relativedelta(months=1)
+
+    return dates
+
+
 # ========================================
 # POST /api/contracts - 创建分期合同
 # ========================================
@@ -100,10 +136,23 @@ def create_contract():
         data = request.get_json()
 
         # 验证必填字段
-        required_fields = ['type', 'total_amount', 'weekly_amount', 'day_of_week', 'start_date', 'end_date']
+        required_fields = ['type', 'total_amount', 'period_amount', 'start_date', 'end_date']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'缺少必填字段：{field}'}), 400
+
+        # 获取分期类型（默认为 weekly）
+        period_type = data.get('period_type', 'weekly')
+
+        # 根据分期类型验证扣费日字段
+        if period_type == 'weekly':
+            if 'day_of_week' not in data:
+                return jsonify({'error': '周扣费模式需要提供 day_of_week'}), 400
+        elif period_type == 'monthly':
+            if 'day_of_month' not in data:
+                return jsonify({'error': '月扣费模式需要提供 day_of_month'}), 400
+        else:
+            return jsonify({'error': f'不支持的分期类型：{period_type}'}), 400
 
         # 解析日期
         start_date = datetime.fromisoformat(data['start_date']).date()
@@ -130,16 +179,21 @@ def create_contract():
         contract = MembershipContract(
             expense_id=parent_expense.id,
             total_amount=float(data['total_amount']),
-            weekly_amount=float(data['weekly_amount']),
-            day_of_week=int(data['day_of_week']),
+            period_amount=float(data['period_amount']),
+            period_type=period_type,
+            day_of_week=int(data['day_of_week']) if period_type == 'weekly' else None,
+            day_of_month=int(data['day_of_month']) if period_type == 'monthly' else None,
             start_date=start_date,
             end_date=end_date
         )
         db.session.add(contract)
         db.session.flush()  # 获取 contract.id
 
-        # 3. 生成所有周扣费日期
-        charge_dates = generate_weekly_charge_dates(start_date, end_date, contract.day_of_week)
+        # 3. 生成所有扣费日期（根据分期类型）
+        if period_type == 'weekly':
+            charge_dates = generate_weekly_charge_dates(start_date, end_date, contract.day_of_week)
+        else:  # monthly
+            charge_dates = generate_monthly_charge_dates(start_date, end_date, contract.day_of_month)
 
         today = datetime.now().date()
         paid_count = 0
@@ -156,7 +210,7 @@ def create_contract():
                 child_expense = Expense(
                     type=data['type'],
                     category=data.get('category', ''),
-                    amount=contract.weekly_amount,
+                    amount=contract.period_amount,
                     currency=data.get('currency', 'NZD'),
                     date=charge_date,
                     note=f"{data.get('category', '分期')} - 第 {paid_count} 期",
@@ -166,24 +220,24 @@ def create_contract():
                 db.session.add(child_expense)
                 db.session.flush()
 
-                # 创建周扣费记录（关联子支出）
+                # 创建扣费记录（关联子支出）
                 weekly_charge = WeeklyCharge(
                     contract_id=contract.id,
                     expense_id=child_expense.id,
                     charge_date=charge_date,
-                    amount=contract.weekly_amount,
+                    amount=contract.period_amount,
                     status=status
                 )
             else:
                 status = 'pending'
                 pending_count += 1
 
-                # 创建周扣费记录（待付，不创建子支出）
+                # 创建扣费记录（待付，不创建子支出）
                 weekly_charge = WeeklyCharge(
                     contract_id=contract.id,
                     expense_id=None,  # 待付款时没有支出记录
                     charge_date=charge_date,
-                    amount=contract.weekly_amount,
+                    amount=contract.period_amount,
                     status=status
                 )
 

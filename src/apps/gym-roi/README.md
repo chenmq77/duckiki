@@ -62,7 +62,7 @@ gym-roi/
 ### 1. 本地开发（Admin 模式）
 ```bash
 npm run dev
-# 访问 http://localhost:5173/admin
+# 访问 http://localhost:5173/duckiki/admin
 ```
 
 在 Admin 页面可以：
