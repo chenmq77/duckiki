@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import api from '../api/client';
+import { baseCard, typography, buttons, form } from '../styles/commonStyles';
 
 export default function ActivityForm({ onSuccess }) {
   const [formData, setFormData] = useState({
@@ -200,22 +201,13 @@ export default function ActivityForm({ onSuccess }) {
   );
 }
 
-// 样式 - Google News 风格
+// 样式 - Flat Design (扁平化设计)
 const styles = {
   container: {
-    background: 'white',
-    borderRadius: '8px',
-    padding: '20px',  // 减小 padding
-    // boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
-    // border: '1px solid #dadce0',
+    ...baseCard,  // 使用共享样式（扁平化：无阴影、无边框）
     height: 'fit-content',
   },
-  title: {
-    fontSize: '16px',  // 减小标题
-    fontWeight: '500',
-    marginBottom: '16px',  // 减小间距
-    color: '#202124',
-  },
+  title: typography.title,  // 使用共享样式
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -285,7 +277,7 @@ const styles = {
     borderRadius: '4px',
     marginBottom: '16px',
     fontSize: '13px',
-    border: '1px solid #f4c7c3',
+    // 扁平化设计：无边框
   },
   success: {
     padding: '12px',
@@ -294,14 +286,14 @@ const styles = {
     borderRadius: '4px',
     marginBottom: '16px',
     fontSize: '13px',
-    border: '1px solid #ceead6',
+    // 扁平化设计：无边框
   },
   weightInfo: {
     marginTop: '20px',
     padding: '16px',
     background: '#f9fafb',
     borderRadius: '8px',
-    border: '1px solid #e5e7eb',
+    // 扁平化设计：无边框
   },
   weightTitle: {
     fontSize: '14px',

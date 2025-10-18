@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
 import ContractFormFields from './ContractFormFields';
+import { baseCard, typography, buttons, form } from '../styles/commonStyles';
 
 export default function ExpenseForm({ onSuccess }) {
   // 支付模式：full = 全额，installment = 分期
@@ -330,22 +331,13 @@ export default function ExpenseForm({ onSuccess }) {
   );
 }
 
-// 样式 - Google News 风格
+// 样式 - Flat Design (扁平化设计)
 const styles = {
   container: {
-    background: 'white',
-    borderRadius: '8px',
-    padding: '20px',
-    // boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
-    // border: '1px solid #dadce0',
+    ...baseCard,  // 使用共享样式（扁平化：无阴影、无边框）
     height: 'fit-content',
   },
-  title: {
-    fontSize: '16px',
-    fontWeight: '500',
-    marginBottom: '16px',
-    color: '#202124',
-  },
+  title: typography.title,  // 使用共享样式
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -445,6 +437,6 @@ const styles = {
     borderRadius: '4px',
     marginBottom: '16px',
     fontSize: '13px',
-    border: '1px solid #f4c7c3',
+    // 扁平化设计：无边框
   },
 };

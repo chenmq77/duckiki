@@ -2,6 +2,79 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-10-19] - UI 重构：扁平化设计 (Flat Design)
+
+### 为什么要做
+
+**用户需求**："这些div 我希望你统一改成没有shadow和border的样子 扁平简约"
+
+**用户痛点**："那么多其他的组件 不能复用这个div的style吗 还得每一个jsx重新写？"
+
+用户希望将所有组件统一改为扁平化设计，移除 boxShadow 和 border，打造简约风格。同时希望样式能够复用，而不是在每个组件中重复定义。
+
+### 做了什么
+
+**创建共享样式文件**：
+- **新建** `src/apps/gym-roi/styles/commonStyles.js`
+- 定义了所有通用样式：
+  - `baseCard`: 基础卡片容器（无阴影、无边框）
+  - `baseMetric`: 指标卡片样式
+  - `typography`: 文字样式（标题、标签、值）
+  - `buttons`: 按钮样式（primary, secondary, danger）
+  - `form`: 表单样式（input, select, label）
+  - `layout`: 布局样式（flexRow, grid2/3/4）
+  - `states`: 状态样式（loading, error, empty）
+  - `colors`: 颜色主题
+
+**更新所有组件使用共享样式**：
+1. **ROICard.jsx** - 导入共享样式，移除 boxShadow 和 border
+2. **ExpenseList.jsx** - 移除卡片、模态框、表格的边框和阴影
+3. **ExpenseForm.jsx** - 移除容器和错误提示的边框
+4. **ActivityForm.jsx** - 移除容器、提示框的边框
+5. **ActivityList.jsx** - 移除卡片和列表项的边框
+6. **ContractFormFields.jsx** - 移除分期字段容器的边框
+
+### 技术细节
+
+**实现方式**：
+```javascript
+// 1. 创建共享样式文件
+export const baseCard = {
+  background: 'white',
+  borderRadius: '8px',
+  padding: '20px',
+  // 扁平化设计：无阴影、无边框
+};
+
+// 2. 组件中导入使用
+import { baseCard, typography, buttons } from '../styles/commonStyles';
+
+const styles = {
+  container: baseCard,  // 直接使用共享样式
+  title: typography.title,
+};
+```
+
+**优势**：
+- ✅ **一次修改，全局生效** - 只需修改 commonStyles.js
+- ✅ **保持设计一致性** - 所有组件自动使用相同风格
+- ✅ **易于维护** - 未来修改设计风格只需改一个文件
+- ✅ **代码复用** - 减少重复代码，提高可维护性
+
+### 视觉效果
+
+**改动前**：
+- 所有卡片有 boxShadow: `0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)`
+- 所有容器有 border: `1px solid #dadce0` 或类似边框
+- Google News 风格（带阴影和边框）
+
+**改动后**：
+- 所有卡片和容器无阴影、无边框
+- 扁平化、简约风格
+- 保持圆角和内边距，视觉更清爽
+
+---
+
 ## [2025-10-19] - Bug 修复：编辑分期金额时，多处数据未同步更新（完整版）
 
 ### 概述

@@ -233,7 +233,7 @@ const styles = {
     background: '#f9fafb',
     borderRadius: '6px',
     padding: '14px',
-    border: '1px solid #e5e7eb',
+    // 扁平化设计：无边框
     display: 'flex',
     flexDirection: 'column',
     gap: '12px',

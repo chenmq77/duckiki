@@ -13,6 +13,7 @@
 
 import { useState, useEffect } from 'react';
 import api from '../api/client';
+import { baseCard, baseMetric, typography, buttons, layout } from '../styles/commonStyles';
 
 export default function ROICard() {
   const [roiData, setRoiData] = useState(null);
@@ -288,15 +289,9 @@ export default function ROICard() {
   );
 }
 
-// 样式 - Google News 风格
+// 样式 - Flat Design (扁平化设计)
 const styles = {
-  card: {
-    background: 'white',
-    borderRadius: '8px',
-    padding: '20px',
-    // boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
-    // border: '1px solid #dadce0',
-  },
+  card: baseCard,  // 使用共享样式
   // 标题 + 模式切换
   header: {
     display: 'flex',
@@ -304,12 +299,7 @@ const styles = {
     alignItems: 'center',
     marginBottom: '16px',
   },
-  title: {
-    fontSize: '16px',
-    fontWeight: '500',
-    color: '#202124',
-    margin: 0,
-  },
+  title: typography.title,  // 使用共享样式
   modeToggle: {
     display: 'flex',
     gap: '4px',
@@ -331,7 +321,7 @@ const styles = {
   modeButtonActive: {
     background: 'white',
     color: '#1a73e8',
-    // boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3)',
+    // 扁平化设计：无阴影
   },
   roiStatus: {
     textAlign: 'center',
@@ -377,36 +367,10 @@ const styles = {
     gap: '12px',
     marginBottom: '16px',
   },
-  metric: {
-    textAlign: 'center',
-    padding: '12px 8px',
-    background: '#f8f9fa',
-    borderRadius: '8px',
-    border: '1px solid #dadce0',
-    minHeight: '80px',  // 确保所有框高度一致
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-  },
-  metricLabel: {
-    fontSize: '11px',
-    color: '#5f6368',
-    marginBottom: '4px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    fontWeight: '500',
-  },
-  metricValue: {
-    fontSize: '18px',
-    fontWeight: '500',
-    color: '#202124',
-  },
-  metricUnit: {
-    fontSize: '15px',
-    fontWeight: 'normal',
-    color: '#9ca3af',
-    marginLeft: '4px',
-  },
+  metric: baseMetric,  // 使用共享样式（扁平化：无边框）
+  metricLabel: typography.metricLabel,  // 使用共享样式
+  metricValue: typography.metricValue,  // 使用共享样式
+  metricUnit: typography.metricUnit,  // 使用共享样式
   refreshButton: {
     width: '100%',
     padding: '8px',

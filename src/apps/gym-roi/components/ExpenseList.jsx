@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
 import ContractFormFields from './ContractFormFields';
+import { baseCard, typography, buttons, form } from '../styles/commonStyles';
 
 export default function ExpenseList({ refreshTrigger, onDelete }) {
   const [expenses, setExpenses] = useState([]);
@@ -770,23 +771,14 @@ export default function ExpenseList({ refreshTrigger, onDelete }) {
   );
 }
 
-// 样式 - Google News 风格
+// 样式 - Flat Design (扁平化设计)
 const styles = {
   container: {
-    background: 'white',
-    borderRadius: '8px',
-    padding: '20px',
-    // boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
-    // border: '1px solid #dadce0',
+    ...baseCard,  // 使用共享样式（扁平化：无阴影、无边框）
     minWidth: 0,  // 允许 flex 子元素收缩
     overflow: 'hidden',  // 防止内容溢出
   },
-  title: {
-    fontSize: '16px',
-    fontWeight: '500',
-    marginBottom: '16px',
-    color: '#202124',
-  },
+  title: typography.title,  // 使用共享样式
   list: {
     display: 'flex',
     flexDirection: 'column',
@@ -796,7 +788,7 @@ const styles = {
     padding: '10px 12px',
     background: '#f8f9fa',
     borderRadius: '4px',
-    border: '1px solid #e8eaed',
+    // 扁平化设计：无边框
     transition: 'background 0.2s',
   },
   // 显示模式 - 单行布局
@@ -952,7 +944,7 @@ const styles = {
     width: '90%',
     maxHeight: '80vh',
     overflow: 'auto',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    // 扁平化设计：无阴影
   },
   closeButton: {
     marginTop: '16px',
@@ -970,13 +962,13 @@ const styles = {
     background: '#f8f9fa',
     borderRadius: '6px',
     padding: '16px',
-    border: '1px solid #e8eaed',
+    // 扁平化设计：无边框
   },
   contractInfoRow: {
     display: 'flex',
     justifyContent: 'space-between',
     padding: '8px 0',
-    borderBottom: '1px solid #e8eaed',
+    // 扁平化设计：无底部边框
   },
   contractInfoLabel: {
     fontSize: '13px',
@@ -991,7 +983,7 @@ const styles = {
   chargesTable: {
     maxHeight: '300px',
     overflowY: 'auto',
-    border: '1px solid #e8eaed',
+    // 扁平化设计：无边框
     borderRadius: '4px',
   },
   chargeRow: {
@@ -1127,7 +1119,7 @@ const styles = {
     marginTop: '16px',
     padding: '12px',
     background: '#fef2f2',
-    border: '1px solid #fecaca',
+    // 扁平化设计：无边框
     borderRadius: '6px',
     display: 'flex',
     gap: '8px',

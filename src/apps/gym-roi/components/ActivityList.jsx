@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import api from '../api/client';
+import { baseCard, typography, buttons } from '../styles/commonStyles';
 
 export default function ActivityList({ refreshTrigger, onDelete }) {
   const [activities, setActivities] = useState([]);
@@ -202,23 +203,14 @@ export default function ActivityList({ refreshTrigger, onDelete }) {
   );
 }
 
-// 样式 - Google News 风格
+// 样式 - Flat Design (扁平化设计)
 const styles = {
   container: {
-    background: 'white',
-    borderRadius: '8px',
-    padding: '20px',
-    // boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
-    // border: '1px solid #dadce0',
+    ...baseCard,  // 使用共享样式（扁平化：无阴影、无边框）
     minWidth: 0,  // 允许 flex 子元素收缩
     overflow: 'hidden',  // 防止内容溢出
   },
-  title: {
-    fontSize: '16px',
-    fontWeight: '500',
-    marginBottom: '16px',
-    color: '#202124',
-  },
+  title: typography.title,  // 使用共享样式
   list: {
     display: 'flex',
     flexDirection: 'column',
@@ -228,7 +220,7 @@ const styles = {
     padding: '10px 12px',
     background: '#f8f9fa',
     borderRadius: '4px',
-    border: '1px solid #e8eaed',
+    // 扁平化设计：无边框
     transition: 'background 0.2s',
   },
   // 显示模式 - 单行布局
