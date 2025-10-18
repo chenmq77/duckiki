@@ -56,11 +56,13 @@ from routes.expenses import expenses_bp
 from routes.activities import activities_bp
 from routes.roi import roi_bp
 from routes.contracts import contracts_bp
+from routes.export import export_bp
 
 app.register_blueprint(expenses_bp)
 app.register_blueprint(activities_bp)
 app.register_blueprint(roi_bp)
 app.register_blueprint(contracts_bp)
+app.register_blueprint(export_bp)
 
 # ========================================
 # 健康检查接口

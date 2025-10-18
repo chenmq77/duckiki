@@ -2,6 +2,152 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-10-19] - v3.0 重构：Public 前端展示页 + 目录重组
+
+### 为什么要做
+
+**用户需求**：
+1. "你先实现public前端的功能吧 但是有组件可以复用吧？"
+2. "你在后端写一个btn 把数据导出到前端并发布"
+3. "我想把这个仓库名称改成健身房回本计划 就是让这个github仓库和page只做健身房回本计划这件事"
+4. "这里的目录结构要调整你就调整一下"
+
+**用户痛点**：
+- 需要一个公开的展示页面部署到 GitHub Pages，让任何人都能查看回本进度
+- 希望 Admin 管理端和 Public 展示页分离，Admin 只在本地使用
+- 需要将数据从后端导出为静态 JSON，供 Public 前端读取
+- 希望仓库专注于健身房回本计划，并调整目录结构
+
+### 做了什么
+
+**1. 目录重组（方案 A）**：
+```
+gym-roi-tracker/
+├── admin/                  # 管理端（本地使用）
+│   ├── api/
+│   ├── components/
+│   ├── pages/
+│   ├── styles/
+│   ├── utils/
+│   └── App.jsx
+├── public/                 # 公开展示页（GitHub Pages）
+│   ├── components/
+│   ├── pages/
+│   ├── styles/
+│   └── utils/
+├── backend/                # 后端 API
+├── data/                   # 静态数据文件
+│   └── summary.json       # 导出的 ROI 数据
+├── docs/                   # 文档
+├── index.html             # 管理端入口
+└── public.html            # 公开展示页入口
+```
+
+**2. 创建 React 入口文件**：
+- `src/main-admin.jsx` - 管理端入口，导入 admin/App.jsx
+- `src/main-public.jsx` - 公开展示页入口，导入 public/pages/Home.jsx
+
+**3. 创建 Public 前端只读组件**：
+- `public/components/ROICardReadOnly.jsx` - 只读 ROI 进度卡片
+- `public/components/ExpenseListReadOnly.jsx` - 只读支出列表
+- `public/components/ActivityListReadOnly.jsx` - 只读活动列表
+- `public/pages/Home.jsx` - 公开展示页主页，从 `/data/summary.json` 加载数据
+
+**4. 实现后端数据导出 API**：
+- 新建 `backend/routes/export.py`
+- 添加 `POST /api/export/json` 端点，导出 ROI 数据、支出、活动到 `/data/summary.json`
+- 在 `admin/pages/Dashboard.jsx` 添加"导出数据"按钮
+
+**5. 更新配置文件**：
+- `vite.config.js` - 配置多页面构建，只构建 public.html 用于 GitHub Pages，base 路径改为 `/gym/`
+- `package.json` - 项目名改为 `gym-roi-tracker`，版本升级到 `3.0.0`，新增 `dev:admin` 和 `dev:public` 脚本
+- `backend/app.py` - 注册 export 蓝图
+
+### 技术细节
+
+**实现方式**：
+
+1. **多页面 Vite 配置**：
+```javascript
+export default defineConfig({
+  base: '/gym/',
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'public.html'),  // 只构建 public
+      },
+    },
+  },
+})
+```
+
+2. **数据导出流程**：
+```
+Admin 点击"导出数据"
+  → POST /api/export/json
+  → 后端读取数据库
+  → 生成 /data/summary.json
+  → Public 前端 fetch('/data/summary.json')
+```
+
+3. **Vite 配置修复**：
+- **问题**：Public 前端无法访问 `/data/summary.json` (404 错误)
+- **原因**：Vite 开发服务器默认不提供 `data/` 目录的访问
+- **解决方案**：
+  - 创建 `public-static/` 目录作为 Vite 的静态资源目录
+  - 将 `data/` 软链接到 `public-static/data` (开发环境访问)
+  - 安装 `vite-plugin-static-copy` 插件在构建时复制真实的 data 目录
+  - 设置 `publicDir: 'public-static'` 让开发服务器能访问 data
+- **修改文件**：`vite.config.js`, `package.json`
+
+```bash
+# 创建软链接
+mkdir -p public-static
+ln -s ../data public-static/data
+```
+
+```javascript
+// vite.config.js
+import { viteStaticCopy } from 'vite-plugin-static-copy'
+
+export default defineConfig({
+  plugins: [
+    react(),
+    viteStaticCopy({
+      targets: [{ src: 'data', dest: '.' }]  // 构建时复制真实文件
+    })
+  ],
+  publicDir: 'public-static',  // 开发时通过软链接访问
+})
+```
+
+4. **只读组件实现**：
+```javascript
+// 从 props 接收数据，而非 API 调用
+export default function ROICardReadOnly({ roiData }) {
+  // 移除所有编辑功能
+  // 移除 API 调用
+  // 只展示数据
+}
+```
+
+### 产生的影响
+
+**优点**：
+- ✅ Admin 和 Public 完全分离，职责清晰
+- ✅ Public 前端可独立部署到 GitHub Pages
+- ✅ 数据通过静态 JSON 文件加载，无需后端 API
+- ✅ 组件复用（样式和结构复用，逻辑简化）
+- ✅ 目录结构扁平化，更易维护
+
+**缺点**：
+- ⚠️ 需要手动导出数据并 commit 到 git
+- ⚠️ Public 前端数据不是实时的
+
+**未来优化方向**：
+- [ ] 自动化数据导出和部署流程（GitHub Actions）
+- [ ] 添加数据最后更新时间显示
+
 ## [2025-10-19] - UI 重构：扁平化设计 (Flat Design)
 
 ### 为什么要做
