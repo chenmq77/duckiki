@@ -208,8 +208,8 @@ const styles = {
     background: 'white',
     borderRadius: '8px',
     padding: '20px',
-    boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
-    border: '1px solid #dadce0',
+    // boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
+    // border: '1px solid #dadce0',
     minWidth: 0,  // 允许 flex 子元素收缩
     overflow: 'hidden',  // 防止内容溢出
   },
