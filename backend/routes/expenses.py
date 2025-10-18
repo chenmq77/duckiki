@@ -159,7 +159,34 @@ def update_expense(id):
         if 'category' in data:
             expense.category = data['category']
         if 'amount' in data:
-            expense.amount = float(data['amount'])
+            new_amount = float(data['amount'])
+            expense.amount = new_amount
+
+            # 🔄 同步更新关联的 WeeklyCharge 记录
+            # 如果这是一个分期子支出（有 parent_expense_id），需要同步更新对应的 charge 记录
+            if expense.parent_expense_id:
+                from models import WeeklyCharge, MembershipContract
+                # 查找关联的 charge 记录（通过 expense_id）
+                charge = WeeklyCharge.query.filter_by(expense_id=expense.id).first()
+                if charge:
+                    charge.amount = new_amount
+
+                    # 🔄 重新计算合同总金额
+                    # 查找该 charge 所属的合同
+                    contract = MembershipContract.query.get(charge.contract_id)
+                    if contract:
+                        # 获取该合同的所有扣费记录
+                        all_charges = WeeklyCharge.query.filter_by(contract_id=contract.id).all()
+                        # 重新计算总金额 = 所有期数金额之和
+                        new_total = sum(c.amount for c in all_charges)
+                        contract.total_amount = new_total
+
+                        # 🔄 同步更新父 expense 的金额
+                        # 父 expense 是分期合同的总记录，金额应该等于合同总金额
+                        parent_expense = Expense.query.get(expense.parent_expense_id)
+                        if parent_expense:
+                            parent_expense.amount = new_total
+
         if 'currency' in data:
             expense.currency = data['currency']
         if 'date' in data:
