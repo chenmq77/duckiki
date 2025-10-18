@@ -1,0 +1,132 @@
+{
+  "roi": {
+    "total_activities": 8,
+    "weighted_total": 10.15,
+    "market_reference_price": 8.0,
+    "paid": {
+      "total_expense": 40.0,
+      "average_cost": 3.94,
+      "money_saved": 41.2,
+      "roi_percentage": 103.0
+    },
+    "planned": {
+      "total_expense": 856.0,
+      "average_cost": 84.33,
+      "money_saved": -774.8,
+      "roi_percentage": -90.51
+    }
+  },
+  "expenses": [
+    {
+      "id": 3,
+      "amount": 0.0,
+      "currency": "NZD",
+      "date": "2025-10-16",
+      "type": "membership",
+      "category": "年卡",
+      "note": "年卡 - 第 2 期",
+      "is_installment": false,
+      "parent_expense_id": 1,
+      "installment_number": 2,
+      "parent_category": "年卡"
+    },
+    {
+      "id": 4,
+      "amount": 23.0,
+      "currency": "NZD",
+      "date": "2025-10-10",
+      "type": "other",
+      "category": "锁 padlock",
+      "note": "物品安全 必须支出",
+      "is_installment": false,
+      "parent_expense_id": null
+    },
+    {
+      "id": 1,
+      "amount": 833.0,
+      "currency": "NZD",
+      "date": "2025-10-09",
+      "type": "membership",
+      "category": "年卡",
+      "note": "https://online.theolympic.co.nz/\n取消 subscription 需要提前告知，每年有一定天数可以暂停 pause",
+      "is_installment": true,
+      "parent_expense_id": null,
+      "contract_info": {
+        "total_periods": 53,
+        "paid_periods": 2
+      }
+    },
+    {
+      "id": 2,
+      "amount": 17.0,
+      "currency": "NZD",
+      "date": "2025-10-09",
+      "type": "membership",
+      "category": "年卡",
+      "note": "年卡 - 第 1 期",
+      "is_installment": false,
+      "parent_expense_id": 1,
+      "installment_number": 1,
+      "parent_category": "年卡"
+    }
+  ],
+  "activities": [
+    {
+      "id": 1,
+      "distance": 1800,
+      "date": "2025-10-16",
+      "calculated_weight": 1.59,
+      "note": ""
+    },
+    {
+      "id": 2,
+      "distance": 1600,
+      "date": "2025-10-15",
+      "calculated_weight": 1.47,
+      "note": ""
+    },
+    {
+      "id": 3,
+      "distance": 1500,
+      "date": "2025-10-14",
+      "calculated_weight": 1.41,
+      "note": ""
+    },
+    {
+      "id": 4,
+      "distance": 500,
+      "date": "2025-10-13",
+      "calculated_weight": 0.66,
+      "note": ""
+    },
+    {
+      "id": 5,
+      "distance": 1500,
+      "date": "2025-10-12",
+      "calculated_weight": 1.41,
+      "note": ""
+    },
+    {
+      "id": 6,
+      "distance": 1500,
+      "date": "2025-10-11",
+      "calculated_weight": 1.41,
+      "note": ""
+    },
+    {
+      "id": 7,
+      "distance": 1100,
+      "date": "2025-10-10",
+      "calculated_weight": 1.1,
+      "note": ""
+    },
+    {
+      "id": 8,
+      "distance": 1100,
+      "date": "2025-10-09",
+      "calculated_weight": 1.1,
+      "note": ""
+    }
+  ],
+  "lastUpdated": "2025-10-19T10:09:11.244561"
+}

@@ -13,7 +13,7 @@ export default defineConfig({
         main: resolve(__dirname, 'public.html'),
       },
     },
-    outDir: 'dist',
+    outDir: 'docs',  // 构建到 docs/ 用于 GitHub Pages
   },
   // 使用 public-static 作为静态资源目录
   // - 开发时: Vite 直接从这里提供静态文件
