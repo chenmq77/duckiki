@@ -9,7 +9,7 @@ echo ""
 # 杀掉已有的进程
 echo "📦 清理旧进程..."
 lsof -ti:5002 | xargs kill -9 2>/dev/null
-lsof -ti:5173 | xargs kill -9 2>/dev/null
+lsof -ti:5174 | xargs kill -9 2>/dev/null
 sleep 1
 
 # 启动后端
@@ -31,7 +31,7 @@ echo ""
 echo "✅ 启动完成!"
 echo ""
 echo "📍 访问地址:"
-echo "   公开展示页: http://localhost:5173/public.html"
+echo "   公开展示页: http://localhost:5174/public.html"
 echo "   后端 API: http://localhost:5002/"
 echo ""
 echo "💡 按 Ctrl+C 停止所有服务"

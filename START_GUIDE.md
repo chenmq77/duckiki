@@ -8,14 +8,12 @@
 ./gym
 ```
 
-然后选择要启动的服务:
-- 输入 `1` - 启动管理后台
-- 输入 `2` - 启动公开展示页
+这会同时启动管理后台和公开展示页，浏览器会自动打开两个页面。
 
-或者直接指定:
+或者单独启动某个服务:
 ```bash
-./gym admin    # 启动管理后台
-./gym public   # 启动公开展示页
+./gym admin    # 只启动管理后台
+./gym public   # 只启动公开展示页
 ```
 
 按 `Ctrl+C` 可以停止所有服务。
@@ -36,7 +34,7 @@
 ```bash
 ./start-public.sh
 ```
-然后访问: http://localhost:5173/public.html
+然后访问: http://localhost:5174/public.html
 
 ---
 
@@ -61,7 +59,7 @@ npm run dev
 ```bash
 npm run dev:public
 ```
-公开页将运行在: http://localhost:5173/public.html
+公开页将运行在: http://localhost:5174/public.html
 
 ---
 
@@ -77,7 +75,8 @@ npm run dev:public
 
 ## 端口说明
 
-- **5173** - 前端开发服务器(Vite)
+- **5173** - 管理前端开发服务器(Vite)
+- **5174** - 公开前端开发服务器(Vite)
 - **5002** - 后端 API 服务器(Flask)
 
 ---
@@ -86,7 +85,7 @@ npm run dev:public
 
 ### 本地开发
 - 管理后台: http://localhost:5173/
-- 公开展示页: http://localhost:5173/public.html
+- 公开展示页: http://localhost:5174/public.html
 - 后端 API: http://localhost:5002/
 
 ### 生产环境
@@ -99,10 +98,13 @@ npm run dev:public
 ### 端口被占用
 如果提示端口被占用,可以手动杀掉进程:
 ```bash
-# 杀掉 5173 端口
+# 杀掉 5173 端口（管理端）
 lsof -ti:5173 | xargs kill -9
 
-# 杀掉 5002 端口
+# 杀掉 5174 端口（公开端）
+lsof -ti:5174 | xargs kill -9
+
+# 杀掉 5002 端口（后端）
 lsof -ti:5002 | xargs kill -9
 ```
 
