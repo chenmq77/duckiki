@@ -133,10 +133,10 @@ Gym ROI Tracker - 健身房投资回报追踪工具
 
 1. **游泳** (Swimming)
    - 记录距离（米）
-   - **动态权重**：基于距离的高斯函数（详见 3.2.3）
+   - **动态权重**：基于距离的高斯惩罚 + 对数奖励（详见 3.2.3）
      - 基准距离 1000m → 权重 1.0
-     - 少于基准 → 权重降低（如 500m → 0.64）
-     - 多于基准 → 权重增加（如 1500m → 1.64）
+     - 少于基准 → 权重降低（如 500m → 0.66）
+     - 多于基准 → 权重增加（如 1500m → 1.41，2000m → 1.69）
    - 市场参考价：$50 NZD/次
 
 2. **团课** (Group Class)
@@ -179,14 +179,14 @@ Gym ROI Tracker - 健身房投资回报追踪工具
 
 #### 3.2.2 游泳距离动态权重公式
 
-使用**高斯函数 + 非对称奖励机制**：
+使用**高斯惩罚 + 对数奖励机制**：
 
 **数学模型**：
 
 ```
 weight(distance) = {
-    exp(-(distance - baseline)² / (2σ²))           if distance ≤ baseline
-    exp(-(distance - baseline)² / (2σ²)) + 1.0     if distance > baseline
+    exp(-(distance - baseline)² / (2σ²))              if distance ≤ baseline (高斯惩罚)
+    1.0 + log(1 + (distance - baseline) / baseline)   if distance > baseline (对数奖励)
 }
 ```
 
@@ -197,7 +197,7 @@ weight(distance) = {
     输入：
         distance - 游泳距离（米）
         baseline - 基准距离（默认 1000m，可随体能调整）
-        sigma    - 标准差（默认 400，控制容忍度）
+        sigma    - 标准差（默认 550，控制容忍度）
     输出：
         weight - 权重系数
 
@@ -210,27 +210,30 @@ weight(distance) = {
     gaussianWeight = exp(-(deviation²) / (2 × sigma²))
 
     如果 distance ≤ baseline:
-        // 小于等于基准：使用高斯权重（惩罚）
+        // 小于等于基准：高斯惩罚
         返回 gaussianWeight
     否则:
-        // 大于基准：高斯权重 + 1.0（奖励）
-        返回 gaussianWeight + 1.0
+        // 大于基准：对数奖励（边际收益递减）
+        extraRatio = (distance - baseline) / baseline
+        bonus = log(1 + extraRatio)
+        返回 1.0 + bonus
 ```
 
-**效果示例**：
+**效果示例**（基于 sigma=550 + 对数奖励）：
 
 | 距离 | 计算过程 | 权重 | 说明 |
 |------|---------|------|------|
-| 500m | exp(-0.39) | 0.64 | 少游，惩罚 |
-| 750m | exp(-0.10) | 0.88 | 略少于基准 |
+| 500m | exp(-0.21) | 0.66 | 少游，高斯惩罚 |
+| 750m | exp(-0.05) | 0.90 | 略少于基准 |
 | 1000m | exp(0) | 1.0 | 基准，标准权重 |
-| 1500m | exp(-0.39) + 1 | 1.64 | 多游500m，奖励！ |
-| 2000m | exp(-1.56) + 1 | 1.14 | 多游1000m，继续奖励但递减 |
-| 3000m | exp(-6.25) + 1 | 1.00 | 多游很多，奖励衰减到保底 |
+| 1100m | 1 + log(1.1) | 1.10 | 多游100m，接近线性 |
+| 1500m | 1 + log(1.5) | 1.41 | 多游500m，对数增长 |
+| 2000m | 1 + log(2.0) | 1.69 | 多游1000m，边际收益递减 |
+| 3000m | 1 + log(3.0) | 2.10 | 多游2000m，继续递减 |
 
 **配置参数**：
 - `baseline`: 基准距离（1000m），随体能提升可调整（如 1200m、1500m）
-- `sigma`: 标准差（400），控制曲线陡峭程度，越大越宽松
+- `sigma`: 标准差（550），控制曲线陡峭程度，越大越宽松
 
 **具体实现**：
 - **Python 后端**：[`backend/utils/gaussian.py`](../backend/README.md#核心计算逻辑)
@@ -247,7 +250,7 @@ weight(distance) = {
   "data": {
     "distance": 1500
   },
-  "calculatedWeight": 1.64,
+  "calculatedWeight": 1.41,
   "note": "状态不错，多游了500m"
 }
 ```
@@ -645,7 +648,7 @@ savings = (referencePrice - actualCost) / referencePrice × 100%
 |  【活动权重配置】                                 |
 |  游泳基础权重: [1.0    ]                         |
 |  - 基准距离 (m): [1000  ]                        |
-|  - 标准差 σ: [400  ]                            |
+|  - 标准差 σ: [550  ]                            |
 |                                                  |
 |  团课基础权重: [1.5    ]                         |
 |  强度系数:                                        |
@@ -857,7 +860,7 @@ savings = (referencePrice - actualCost) / referencePrice × 100%
       "data": {
         "distance": 1500
       },
-      "calculatedWeight": 1.64,
+      "calculatedWeight": 1.41,
       "note": "状态不错，多游了500m"
     },
     {
